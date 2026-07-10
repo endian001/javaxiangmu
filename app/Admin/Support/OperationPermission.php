@@ -31,6 +31,10 @@ class OperationPermission
     const PLATFORM_OPERATIONS_WRITE = 'platform.operations.write';
     const PLATFORM_OPERATIONS_DELETE = 'platform.operations.delete';
     const PLATFORM_OPERATIONS_EXPORT = 'platform.operations.export';
+    const GAME_MANAGEMENT_READ = 'game.management.read';
+    const GAME_MANAGEMENT_WRITE = 'game.management.write';
+    const GAME_MANAGEMENT_DELETE = 'game.management.delete';
+    const GAME_MANAGEMENT_EXPORT = 'game.management.export';
 
     public static function can($ability, $user = null)
     {
