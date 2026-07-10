@@ -38,6 +38,10 @@ class AdminOperationPermissionSeeder extends Seeder
             ['slug' => OperationPermission::ACTIVITY_PUBLISH_SWITCH, 'name' => 'Activity publish switch'],
             ['slug' => OperationPermission::OPS_DATA_CLEANUP, 'name' => 'Operations data cleanup preview'],
             ['slug' => OperationPermission::OPS_SITE_SETTING_UPDATE, 'name' => 'Operations site setting update'],
+            ['slug' => OperationPermission::PLATFORM_OPERATIONS_READ, 'name' => 'Platform operations read'],
+            ['slug' => OperationPermission::PLATFORM_OPERATIONS_WRITE, 'name' => 'Platform operations write'],
+            ['slug' => OperationPermission::PLATFORM_OPERATIONS_DELETE, 'name' => 'Platform operations delete'],
+            ['slug' => OperationPermission::PLATFORM_OPERATIONS_EXPORT, 'name' => 'Platform operations export'],
         ];
     }
 }

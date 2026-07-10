@@ -27,16 +27,20 @@ class OperationPermission
     const ACTIVITY_PUBLISH_SWITCH = 'activity.publish.switch';
     const OPS_DATA_CLEANUP = 'ops.data.cleanup';
     const OPS_SITE_SETTING_UPDATE = 'ops.site.setting.update';
+    const PLATFORM_OPERATIONS_READ = 'platform.operations.read';
+    const PLATFORM_OPERATIONS_WRITE = 'platform.operations.write';
+    const PLATFORM_OPERATIONS_DELETE = 'platform.operations.delete';
+    const PLATFORM_OPERATIONS_EXPORT = 'platform.operations.export';
 
     public static function can($ability, $user = null)
     {
+        if (config('admin.permission.enable') === false) {
+            return true;
+        }
+
         $user = $user ?: Admin::user();
         if (! $user) {
             return false;
-        }
-
-        if (config('admin.permission.enable') === false) {
-            return true;
         }
 
         if (method_exists($user, 'isAdministrator') && $user->isAdministrator()) {
