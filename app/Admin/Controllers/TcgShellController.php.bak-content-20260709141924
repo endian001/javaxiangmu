@@ -1,0 +1,24 @@
+<?php
+
+namespace App\Admin\Controllers;
+
+use App\Admin\Support\TcgShellCatalog;
+use App\Http\Controllers\Controller;
+use Dcat\Admin\Layout\Content;
+
+class TcgShellController extends Controller
+{
+    public function show(Content $content, string $code)
+    {
+        $page = TcgShellCatalog::page($code);
+
+        if (!$page) {
+            abort(404);
+        }
+
+        return $content
+            ->title($page['title'])
+            ->description($page['category'].' / 对标功能空壳')
+            ->body(view('admin.tcg-shell', compact('page'))->render());
+    }
+}

@@ -1,0 +1,245 @@
+@php
+    $tabs = $page['tabs'] ?? [];
+@endphp
+
+<style>
+    .tcg-shell-page {
+        font-size: 13px;
+    }
+    .tcg-shell-summary {
+        padding: 12px 14px;
+        margin-bottom: 12px;
+        border: 1px solid #e6e9f0;
+        background: #f8fafc;
+        border-radius: 4px;
+    }
+    .tcg-shell-panel {
+        border: 1px solid #e6e9f0;
+        border-radius: 4px;
+        background: #fff;
+        margin-bottom: 12px;
+    }
+    .tcg-shell-panel__title {
+        padding: 10px 12px;
+        border-bottom: 1px solid #edf0f5;
+        font-weight: 600;
+    }
+    .tcg-shell-panel__body {
+        padding: 12px;
+    }
+    .tcg-shell-filters,
+    .tcg-shell-fields,
+    .tcg-shell-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 12px;
+    }
+    .tcg-shell-field {
+        min-width: 180px;
+        flex: 0 1 220px;
+    }
+    .tcg-shell-field label {
+        display: block;
+        color: #606975;
+        font-weight: 500;
+        margin-bottom: 4px;
+    }
+    .tcg-shell-field .form-control {
+        height: 32px;
+        padding: 4px 8px;
+        background: #fff;
+    }
+    .tcg-shell-buttons .btn {
+        margin-right: 0;
+    }
+    .tcg-shell-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    .tcg-shell-tag {
+        display: inline-block;
+        padding: 4px 8px;
+        border: 1px solid #dce2ea;
+        border-radius: 4px;
+        background: #f8fafc;
+        color: #344050;
+        line-height: 1.3;
+    }
+    .tcg-shell-table {
+        width: 100%;
+        overflow-x: auto;
+    }
+    .tcg-shell-table th {
+        white-space: nowrap;
+        background: #f8fafc;
+    }
+    .tcg-shell-empty {
+        color: #8892a0;
+        text-align: center;
+        padding: 18px;
+    }
+</style>
+
+<div class="tcg-shell-page">
+    <div class="tcg-shell-summary">
+        <strong>{{ $page['title'] }}</strong>
+        <span class="text-muted">（{{ $page['category'] }} / {{ $page['code'] }}）</span>
+        <div class="text-muted" style="margin-top:6px;">{{ $page['summary'] ?? '该页面已建立对标功能入口，真实业务逻辑后续接入。' }}</div>
+    </div>
+
+    @if(count($tabs) > 1)
+        <ul class="nav nav-tabs" role="tablist">
+            @foreach($tabs as $index => $tab)
+                <li class="nav-item">
+                    <a class="nav-link {{ $index === 0 ? 'active' : '' }}" data-toggle="tab" href="#tcg-tab-{{ $page['code'] }}-{{ $index }}" role="tab">
+                        {{ $tab['title'] ?? ('标签'.($index + 1)) }}
+                    </a>
+                </li>
+            @endforeach
+        </ul>
+    @endif
+
+    <div class="tab-content" style="padding-top:12px;">
+        @foreach($tabs as $index => $tab)
+            <div class="tab-pane {{ $index === 0 ? 'active' : '' }}" id="tcg-tab-{{ $page['code'] }}-{{ $index }}" role="tabpanel">
+                @if(count($tabs) === 1)
+                    <h4 style="margin-top:0;margin-bottom:12px;">{{ $tab['title'] ?? $page['title'] }}</h4>
+                @endif
+
+                @foreach(($tab['notice'] ?? []) as $notice)
+                    <div class="alert alert-info">{{ $notice }}</div>
+                @endforeach
+
+                @if(!empty($tab['filters']))
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">筛选条件</div>
+                        <div class="tcg-shell-panel__body">
+                            <div class="tcg-shell-filters">
+                                @foreach($tab['filters'] as $filter)
+                                    <div class="tcg-shell-field">
+                                        <label>{{ $filter }}</label>
+                                        <input class="form-control" type="text" placeholder="{{ $filter }}">
+                                    </div>
+                                @endforeach
+                            </div>
+                            @if(empty($tab['buttons']))
+                                <button class="btn btn-primary btn-sm" type="button">搜索</button>
+                            @endif
+                        </div>
+                    </div>
+                @endif
+
+                @if(!empty($tab['fields']))
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">字段配置</div>
+                        <div class="tcg-shell-panel__body">
+                            <div class="tcg-shell-fields">
+                                @foreach($tab['fields'] as $field)
+                                    <div class="tcg-shell-field">
+                                        <label>{{ $field }}</label>
+                                        <input class="form-control" type="text" placeholder="{{ $field }}">
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                @if(!empty($tab['buttons']))
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">操作按钮</div>
+                        <div class="tcg-shell-panel__body">
+                            <div class="tcg-shell-buttons">
+                                @foreach($tab['buttons'] as $button)
+                                    @php
+                                        $class = in_array($button, ['搜索', '提交', '保存', '一键打包App']) ? 'btn-primary' : (in_array($button, ['批量删除', '删除']) ? 'btn-danger' : 'btn-default');
+                                    @endphp
+                                    <button class="btn {{ $class }} btn-sm" type="button">{{ $button }}</button>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                @foreach(($tab['sections'] ?? []) as $section)
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">{{ $section['title'] ?? '配置区' }}</div>
+                        <div class="tcg-shell-panel__body">
+                            @if(!empty($section['fields']))
+                                <div class="tcg-shell-fields">
+                                    @foreach($section['fields'] as $field)
+                                        <div class="tcg-shell-field">
+                                            <label>{{ $field }}</label>
+                                            <input class="form-control" type="text" placeholder="{{ $field }}">
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @if(!empty($section['buttons']))
+                                <div class="tcg-shell-buttons">
+                                    @foreach($section['buttons'] as $button)
+                                        <button class="btn btn-default btn-sm" type="button">{{ $button }}</button>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @if(!empty($section['items']))
+                                <div class="tcg-shell-tags">
+                                    @foreach($section['items'] as $item)
+                                        <span class="tcg-shell-tag">{{ $item }}</span>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @if(!empty($section['table']))
+                                <div class="tcg-shell-table">
+                                    <table class="table table-bordered table-hover">
+                                        <thead>
+                                            <tr>
+                                                @foreach($section['table'] as $column)
+                                                    <th>{{ $column }}</th>
+                                                @endforeach
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="tcg-shell-empty" colspan="{{ count($section['table']) }}">暂无数据</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+
+                @if(!empty($tab['table']))
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">数据列表</div>
+                        <div class="tcg-shell-panel__body">
+                            <div class="tcg-shell-table">
+                                <table class="table table-bordered table-hover">
+                                    <thead>
+                                        <tr>
+                                            @foreach($tab['table'] as $column)
+                                                <th>{{ $column }}</th>
+                                            @endforeach
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td class="tcg-shell-empty" colspan="{{ count($tab['table']) }}">暂无数据</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+            </div>
+        @endforeach
+    </div>
+</div>

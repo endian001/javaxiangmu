@@ -1,0 +1,1409 @@
+@php
+    $tabs = $page['tabs'] ?? [];
+    $isPixelPage = ($page['code'] ?? '') === '12535';
+    $compactTabOrder = [
+        '像素设置' => 0,
+        'Adjust设置' => 1,
+        'Appsflyer设置' => 2,
+        'Facebook 转换 API' => 3,
+        'Voluum设置' => 4,
+        'PropellerAds设置' => 5,
+        'Twitter设置' => 6,
+        'Traffic Factory设置' => 7,
+        'Red Track设置' => 8,
+        'Kwai设置' => 9,
+        'TikTok 设置' => 10,
+        'Keitaro 设置' => 11,
+        'Snapchat 设置' => 12,
+        'App API对接' => 13,
+        '马甲包参数' => 14,
+        '渠道回传设置' => 15,
+        'Resiliencemedia设置' => 16,
+    ];
+    $compactTabBlueprints = [
+        '像素设置' => ['layout' => 'pixel'] + [
+            'key' => 'pixel',
+            'recordFields' => ['域名', '代理推荐码', 'GA4 ID', 'GTM ID', '脸书像素ID', '抖音像素ID', 'Appsflyer ID', '备注'],
+            'idIndex' => 0,
+            'linkIndex' => 9,
+            'actionIndex' => 10,
+            'toggleIndex' => 11,
+            'intro' => [
+                '注意：由于Appsflyer 使用的是Web SDK, 该服务需要透过代理付费开通后才能使用。马甲包对接方案此处不适用',
+            ],
+            'presetTitle' => '预设推广 ID:',
+            'primaryButton' => '投放链接生成器',
+            'presetRows' => [
+                'GA4 ID (预设)',
+                '脸书像素ID (预设)',
+                '抖音像素ID (预设)',
+                'Appsflyer ID (预设)',
+            ],
+            'guide' => [
+                '*如果域名没有配置专属推广ID, 一律套用上方预设的推广ID',
+                '*投放只支援 H5 (手机版)',
+                '*快手可直接投放H5网址，不用在此处配置',
+                '*使用GA4 ID, GTM ID前，需要请客户经理开单调整H5才能生效',
+            ],
+            'fields' => ['域名', '代理推荐码', '推广ID', '备注', '状态'],
+            'selects' => ['状态' => ['全部']],
+            'buttons' => ['新增', '搜索'],
+            'table' => ['ID', '域名', '代理推荐码', 'GA4 ID', 'GTM ID', '脸书像素ID', '抖音像素ID', 'Appsflyer ID', '备注', '投放链接', '操作', '开关'],
+        ],
+        'Adjust设置' => ['layout' => 'list'] + [
+            'key' => 'adjust',
+            'recordFields' => ['app_token', 'app描述'],
+            'actionIndex' => 2,
+            'guide' => [
+                ['Adjust 后台:', ['text' => 'https://suite.adjust.com/', 'href' => 'https://suite.adjust.com']],
+                '1. app_token 需要在 Adjust 后台 AppView > 创建应用',
+                '2. event_token 需要在步骤1的应用内，配置事件',
+                '3. event_token 需要和马甲包 H5 上报接口分开配置，否则统计会重复',
+                '4. 马甲包嵌入我方 H5 时必须传以下 s2s 必要参数：',
+                ['可参考 ', ['text' => '官方文件', 'href' => 'https://help.adjust.com/en/article/server-to-server-events']],
+                '- ad_app_token (string) 必传，应用 app_token',
+                ['- gps_adid (string) Android 必传 ', ['text' => '官方文件', 'href' => 'https://help.adjust.com/en/article/gather-device-ids-android-sdk']],
+                ['- idfa (string) iOS 必传 ', ['text' => '官方文件', 'href' => 'https://help.adjust.com/en/article/gather-device-ids-ios-sdk']],
+                ['- adid (string) iOS 必传 ', ['text' => '官方文件', 'href' => 'https://help.adjust.com/en/article/gather-device-ids-ios-sdk']],
+                '范例H5网址：',
+                'https://<DOMAIN>/m/index.html?ad_app_token=&gps_adid',
+            ],
+            'fields' => ['app_token'],
+            'buttons' => ['新增', '搜索'],
+            'table' => ['app_token', 'app描述', '操作'],
+        ],
+        'Appsflyer设置' => ['layout' => 'list'] + [
+            'key' => 'appsflyer',
+            'recordFields' => ['App Id', 'Dev Key', 'App 描述'],
+            'actionIndex' => 3,
+            'guide' => [
+                ['Appsflyer 后台: ', ['text' => 'https://hq1.appsflyer.com/', 'href' => 'https://hq1.appsflyer.com/']],
+                ['1. App Id 在 Dashboard 上获取 ', ['text' => '文件', 'href' => 'https://support.appsflyer.com/hc/en-us/articles/211719806-App-settings']],
+                '2. Dev Key 在 App Settings 中获取',
+                '3. 马甲包嵌入我方 H5 时必须传以下 s2s 必要参数：',
+                '- af_app_id (string) 必传，应用 app_id',
+                ['- appsflyer_id (string) 必传 ', ['text' => '文件', 'href' => 'https://dev.appsflyer.com/hc/docs/android-sdk-reference-appsflyerlib#getappsflyeruid']],
+                ['- advertising_id (string) 选填 Where available populate with the device GAID (advertising ID) ', ['text' => '文件', 'href' => 'https://support.appsflyer.com/hc/en-us/articles/4408847686161-Device-identifiers']],
+                ['- oaid (string) 选填 ', ['text' => '文件', 'href' => 'https://support.appsflyer.com/hc/en-us/articles/360006278797-Android-OAID-implementation-in-the-SDK']],
+                '- idfa (string) iOS 选填 (请查阅 iOS 相关文件)',
+                '- idfv (string) iOS 选填 (请查阅 iOS 相关文件)',
+                '范例H5网址：',
+                'https://<DOMAIN>/m/index.html?af_app_id=&appsflyer_id=&advertising_id=&oaid=&idfa=&idfv=',
+            ],
+            'fields' => ['App Id', 'Dev Key'],
+            'buttons' => ['新增', '搜索'],
+            'table' => ['App Id', 'Dev Key', 'App 描述', '操作'],
+        ],
+        'Facebook 转换 API' => ['layout' => 'list'] + [
+            'key' => 'facebook',
+            'recordFields' => ['Pixel Id', 'Access Token', 'test_event_code', '描述'],
+            'toggleIndex' => 4,
+            'actionIndex' => 5,
+            'guide' => [
+                '1. Facebook 必须是商业账号',
+                '2. 在事件管理工具 > 资料来源 > 设定 > 点击产生存取权杖可取得 Access Token',
+                '3. test_event_code 是对应 Facebook 测试事件使用，如需使用测试完毕后需要清除',
+                '4. CAPI 用到的 h5 域名建议要做 Facebook 域名验证',
+            ],
+            'fields' => ['Pixel Id', 'Access Token', 'test_event_code', '有效'],
+            'selects' => ['有效' => ['全部']],
+            'buttons' => ['新增', '搜索'],
+            'table' => ['Pixel Id', 'Access Token', 'test_event_code', '描述', '有效', '操作'],
+        ],
+        'Voluum设置' => ['layout' => 'single-submit'] + [
+            'key' => 'voluum',
+            'guide' => [
+                '上报域名格式规范:',
+                '1.需要 http:// or https:// 开头',
+                '2.不允许域名的后续路径, 只需填入單純域名即可',
+                '1.配置转化事件: [Advanced > Custom conversions]',
+                '-Custom conversion event name',
+                '-点选 Add custom conversion 新增转化事件',
+                '-支援类型(et):deposit (充值到账 / 购物), redeposit (复充), register (注册成功), startTrial (首充到账)',
+                '-Values of the et parameter: 请配置我方提供的支援类型 (deposit/redeposit/register/startTrial)',
+                '2.填写上报域名: [Settings > Domains]',
+                '-将 Voluum 後台配置的域名填入我方上报域名 (Dedicated Domain)',
+                '3.投放连结 (Offer URL) 配置与格式 (cid):',
+                ['-H5首页: ', ['text' => 'https://{domain}/m/index.html?cid={clickid}', 'href' => 'https://{domain}/m/index.html?cid={clickid}']],
+                ['-H5注册: ', ['text' => 'https://{domain}/m/register?cid={clickid}', 'href' => 'https://{domain}/m/register?cid={clickid}']],
+                ['-H5注册绑定代理: ', ['text' => 'https://{domain}/m/register?cid={clickid}&affiliateCode=xxx', 'href' => 'https://{domain}/m/register?cid={clickid}&affiliateCode=xxx']],
+                'xxx=代理号或邀请码',
+            ],
+            'fields' => ['上报域名'],
+            'placeholders' => ['上报域名' => '上报域名'],
+            'buttons' => ['提交'],
+        ],
+        'PropellerAds设置' => ['layout' => 'settings-table'] + [
+            'key' => 'propellerads',
+            'guide' => [
+                '此处可配置PropellerAds注册上报, 需配置aid与tid',
+                'ex: http://ad.propellerads.com/conversion.php?aid={aid}&pid=&tid={tid}&visitor_id={sub_id}',
+            ],
+            'settings' => ['aid', 'tid'],
+            'settingsHeader' => ['PropellerAds设置', 'Value'],
+            'buttons' => ['提交'],
+        ],
+        'Twitter设置' => ['layout' => 'list'] + [
+            'key' => 'twitter',
+            'recordFields' => ['Pixel Id', '描述'],
+            'actionIndex' => 2,
+            'fields' => ['Pixel Id'],
+            'buttons' => ['新增', '搜索'],
+            'table' => ['Pixel Id', '描述', '操作'],
+        ],
+        'Traffic Factory设置' => ['layout' => 'list'] + [
+            'key' => 'traffic-factory',
+            'recordFields' => ['代理账号', '描述'],
+            'actionIndex' => 2,
+            'toggleIndex' => 3,
+            'guide' => [
+                '投放連結：https://{domain}/m/home?tfTracker={conversions_tracking}',
+                '使用 tfTracker 把令牌傳給 H5',
+                '1.支援类型:depositSubmit (提交充值), deposit (充值到账 / 购物), redeposit (复充), register (注册成功), startTrial (首充到账)',
+                ['2.创建事件，并填写事件 goal 值: ', ['text' => 'https://admin.trafficfactory.com/panel/advertiser/conversions', 'href' => 'https://admin.trafficfactory.com/panel/advertiser/conversions']],
+                ['-例如: ', ['text' => 'http://s.tf4srv.com/tag.php?goal=7e9e346dc5fd268b49bf418523af8679&tag=', 'href' => 'http://s.tf4srv.com/tag.php?goal=7e9e346dc5fd268b49bf418523af8679&tag=']],
+                '-取 7e9e346dc5fd268b49bf418523af8679 为 goal 值',
+                '3.投放连结格式 (tfTracker):',
+                ['-H5首页: ', ['text' => 'https://{domain}/m/index.html?tfTracker={conversion_tracking}', 'href' => 'https://{domain}/m/index.html?tfTracker={conversion_tracking}']],
+                ['-H5注册: ', ['text' => 'https://{domain}/m/register?tfTracker={conversion_tracking}', 'href' => 'https://{domain}/m/register?tfTracker={conversion_tracking}']],
+                ['-H5注册绑定代理: ', ['text' => 'https://{domain}/m/register?tfTracker={conversion_tracking}&affiliateCode=xxx', 'href' => 'https://{domain}/m/register?tfTracker={conversion_tracking}&affiliateCode=xxx']],
+                'xxx=代理号或邀请码',
+            ],
+            'fields' => ['代理账号'],
+            'buttons' => ['新增', '搜索'],
+            'table' => ['代理账号', '描述', '操作', '开启'],
+        ],
+        'Red Track设置' => ['layout' => 'settings-table'] + [
+            'key' => 'red-track',
+            'guide' => [
+                ['1.Conversion Tracking 配置转化事件: ', ['text' => 'https://app.redtrack.io/conversion-tracking', 'href' => 'https://app.redtrack.io/conversion-tracking']],
+                '-Tools > Conversion Tracking > Conversion Type:',
+                '-支援类型:deposit (充值到账 / 购物), redeposit (复充), register (注册成功), startTrial (首充到账)',
+                '-事件去重方式请选择： Ignore duplicate postbacks by event id',
+                ['2.填写上报域名: ', ['text' => 'https://app.redtrack.io/tools/domains', 'href' => 'https://app.redtrack.io/tools/domains']],
+                '-域名页面会有以下文案:Default sub-domain for your account: ***.ttrk.io / ***.ttrk.com / ***.rttrk.com',
+                '-将您的上报域名填写到下面域名部分',
+                ['3.投放连结配置与格式 (rfCid): ', ['text' => 'https://app.redtrack.io/offers', 'href' => 'https://app.redtrack.io/offers']],
+                ['-H5首页: ', ['text' => 'https://{domain}/m/index.html?rtCid={clickid}', 'href' => 'https://{domain}/m/index.html?rtCid={clickid}']],
+                ['-H5注册: ', ['text' => 'https://{domain}/m/register?rtCid={clickid}', 'href' => 'https://{domain}/m/register?rtCid={clickid}']],
+                ['-H5注册绑定代理: ', ['text' => 'https://{domain}/m/register?rtCid={clickid}&affiliateCode=xxx', 'href' => 'https://{domain}/m/register?rtCid={clickid}&affiliateCode=xxx']],
+                'xxx=代理号或邀请码',
+            ],
+            'settings' => ['Default sub-domain', 'New Domain'],
+            'settingsHeader' => ['Red Track设置', '域名', '操作'],
+            'settingNotes' => [
+                'Default sub-domain' => '*限制為： ***.ttrk.io / ***.ttrk.com / ***.rttrk.com',
+                'New Domain' => '*填写一条即可，不需要 http://',
+            ],
+            'buttons' => ['提交'],
+        ],
+        'Kwai设置' => ['layout' => 'list'] + [
+            'key' => 'kwai',
+            'recordFields' => ['Pixel Id', 'Access Token', '描述'],
+            'toggleIndex' => 3,
+            'actionIndex' => 4,
+            'guide' => [
+                ['快手 EVENT API 文件: ', ['text' => 'https://docs.qingque.cn/d/home/eZQB6la5gGLdpSGexeOlXGFVk?identityId=1pTerwwOjbg#section=h.u7fc3k64zrw5', 'href' => 'https://docs.qingque.cn/d/home/eZQB6la5gGLdpSGexeOlXGFVk?identityId=1pTerwwOjbg#section=h.u7fc3k64zrw5']],
+                '1.支援事件: EVENT_INITIATED_CHECKOUT, EVENT_FIRST_DEPOSIT, EVENT_PURCHASE, EVENT_COMPLETE_REGISTRATION, EVENT_CONTENT_VIEW',
+                '2.只有测试事件成功，才可以在 Kwai 创建广告计划。請參考文件操作',
+                '3.投放连结格式：',
+                ['-H5首页: ', ['text' => 'https://{domain}/m/index.html?kw=1', 'href' => 'https://{domain}/m/index.html?kw=1']],
+                ['-H5注册: ', ['text' => 'https://{domain}/m/register?kw=1', 'href' => 'https://{domain}/m/register?kw=1']],
+                ['-H5注册绑定代理: ', ['text' => 'https://{domain}/m/register?affiliateCode=xxx&kw=1', 'href' => 'https://{domain}/m/register?affiliateCode=xxx&kw=1']],
+                '-xxx=代理号或邀请码',
+            ],
+            'buttons' => ['新增'],
+            'table' => ['Pixel Id', 'Access Token', '描述', '有效', '操作'],
+        ],
+        'TikTok 设置' => ['layout' => 'list'] + [
+            'key' => 'tiktok',
+            'recordFields' => ['Pixel Id', 'Access Token', '描述'],
+            'toggleIndex' => 3,
+            'actionIndex' => 4,
+            'guide' => [
+                '1.TikTok 必须是商业账号',
+                '2.为提高事件准确性及推广效果，建议开启TikTok后台 : Allow first-party cookies功能 详细位置：TikTok后台 > Assets > Settings > Manage Cookies > Allow first-party cookies',
+            ],
+            'buttons' => ['新增', '搜索'],
+            'table' => ['Pixel Id', 'Access Token', '描述', '有效', '操作'],
+        ],
+        'Keitaro 设置' => ['layout' => 'settings-table'] + [
+            'key' => 'keitaro',
+            'guide' => [
+                '完成设定后，请将 Postback URL 提供给系统管理员加入白名单，仅允许白名单内的 URL 发送 Postback 请求。',
+            ],
+            'settings' => ['Postback URL', 'Postback Key'],
+            'settingsHeader' => ['Keitaro 设置', '值', '操作'],
+            'settingNotes' => [
+                'Postback URL' => '*需要 http:// or https:// 开头',
+            ],
+            'buttons' => ['提交'],
+        ],
+        'Snapchat 设置' => ['layout' => 'list'] + [
+            'key' => 'snapchat',
+            'recordFields' => ['Pixel ID', 'Access Token', '描述'],
+            'actionIndex' => 3,
+            'fields' => ['Pixel ID', 'Access Token'],
+            'buttons' => ['新增', '搜索'],
+            'table' => ['Pixel ID', 'Access Token', '描述', '操作'],
+        ],
+    ];
+    $benchmarkClientSchemas = [];
+    foreach ($compactTabBlueprints as $blueprint) {
+        if (empty($blueprint['key'])) {
+            continue;
+        }
+        $benchmarkClientSchemas[$blueprint['key']] = [
+            'layout' => $blueprint['layout'] ?? 'list',
+            'fields' => array_values($blueprint['recordFields'] ?? []),
+            'columns' => array_values($blueprint['table'] ?? []),
+            'idIndex' => $blueprint['idIndex'] ?? -1,
+            'linkIndex' => $blueprint['linkIndex'] ?? -1,
+            'actionIndex' => $blueprint['actionIndex'] ?? -1,
+            'toggleIndex' => $blueprint['toggleIndex'] ?? -1,
+        ];
+    }
+    if ($isPixelPage) {
+        usort($tabs, function ($left, $right) use ($compactTabOrder) {
+            $leftOrder = $compactTabOrder[$left['title'] ?? ''] ?? 999;
+            $rightOrder = $compactTabOrder[$right['title'] ?? ''] ?? 999;
+            return $leftOrder <=> $rightOrder;
+        });
+    }
+    $primaryTabIndexes = [];
+    $extensionTabIndexes = [];
+    foreach ($tabs as $tabIndex => $candidateTab) {
+        $candidateTitle = $candidateTab['title'] ?? '';
+        $candidateOrder = array_key_exists($candidateTitle, $compactTabOrder)
+            ? $compactTabOrder[$candidateTitle]
+            : null;
+        if ($isPixelPage && $candidateOrder !== null && $candidateOrder >= 13) {
+            $extensionTabIndexes[] = $tabIndex;
+            continue;
+        }
+        $primaryTabIndexes[] = $tabIndex;
+    }
+    $ui = [
+        'filters' => html_entity_decode('&#31579;&#36873;&#26465;&#20214;', ENT_QUOTES, 'UTF-8'),
+        'fields' => html_entity_decode('&#23383;&#27573;&#37197;&#32622;', ENT_QUOTES, 'UTF-8'),
+        'buttons' => html_entity_decode('&#25805;&#20316;&#25353;&#38062;', ENT_QUOTES, 'UTF-8'),
+        'list' => html_entity_decode('&#25968;&#25454;&#21015;&#34920;', ENT_QUOTES, 'UTF-8'),
+        'statusConfig' => html_entity_decode('&#29366;&#24577;&#37197;&#32622;', ENT_QUOTES, 'UTF-8'),
+        'search' => html_entity_decode('&#25628;&#32034;', ENT_QUOTES, 'UTF-8'),
+        'reset' => html_entity_decode('&#37325;&#32622;', ENT_QUOTES, 'UTF-8'),
+        'save' => html_entity_decode('&#20445;&#23384;', ENT_QUOTES, 'UTF-8'),
+        'enabled' => html_entity_decode('&#21551;&#29992;', ENT_QUOTES, 'UTF-8'),
+        'logs' => html_entity_decode('&#26597;&#30475;&#26085;&#24535;', ENT_QUOTES, 'UTF-8'),
+        'copy' => html_entity_decode('&#22797;&#21046;&#37197;&#32622;', ENT_QUOTES, 'UTF-8'),
+        'updatedAt' => html_entity_decode('&#26356;&#26032;&#26102;&#38388;', ENT_QUOTES, 'UTF-8'),
+        'action' => html_entity_decode('&#25805;&#20316;', ENT_QUOTES, 'UTF-8'),
+        'status' => html_entity_decode('&#29366;&#24577;', ENT_QUOTES, 'UTF-8'),
+        'records' => html_entity_decode('&#20849; :count &#26465;&#35760;&#24405;', ENT_QUOTES, 'UTF-8'),
+        'pageNo' => html_entity_decode('&#31532; 1 / 1 &#39029;', ENT_QUOTES, 'UTF-8'),
+        'note' => html_entity_decode('&#24403;&#21069;&#20026;&#23545;&#26631;&#21518;&#21488;&#39029;&#38754;&#26679;&#24335;&#65292;&#20445;&#23384;&#21518;&#32493;&#25509;&#20837;&#30495;&#23454;&#19994;&#21153;&#25968;&#25454;&#12290;', ENT_QUOTES, 'UTF-8'),
+        'preset' => html_entity_decode('&#24050;&#25353;&#23545;&#26631;&#23383;&#27573;&#39044;&#32622;', ENT_QUOTES, 'UTF-8'),
+        'lastUpdate' => html_entity_decode('&#26368;&#21518;&#26356;&#26032;', ENT_QUOTES, 'UTF-8'),
+        'edit' => html_entity_decode('&#32534;&#36753;', ENT_QUOTES, 'UTF-8'),
+        'detail' => html_entity_decode('&#35814;&#24773;', ENT_QUOTES, 'UTF-8'),
+        'delete' => html_entity_decode('&#21024;&#38500;', ENT_QUOTES, 'UTF-8'),
+        'copyLink' => html_entity_decode('&#22797;&#21046;&#38142;&#25509;', ENT_QUOTES, 'UTF-8'),
+        'extensions' => html_entity_decode('&#25193;&#23637;&#21151;&#33021;', ENT_QUOTES, 'UTF-8'),
+        'extensionsNote' => html_entity_decode('&#20445;&#30041;&#21407;&#21518;&#21488;&#21151;&#33021;', ENT_QUOTES, 'UTF-8'),
+    ];
+    $contains = function ($text, $needles) {
+        foreach ((array) $needles as $needle) {
+            if ($needle !== '' && strpos($text, $needle) !== false) {
+                return true;
+            }
+        }
+        return false;
+    };
+    $sampleValue = function ($column, $rowIndex = 0, $colIndex = 0, $colCount = 0, $page = [], $tab = []) use ($contains, $ui) {
+        $text = trim((string) $column);
+        $code = $page['code'] ?? '00000';
+        $prefix = strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $code), 0, 6));
+        if ($colCount > 1 && $colIndex === $colCount - 1) {
+            return '<button class="btn btn-xs btn-primary" type="button">'.$ui['edit'].'</button> <button class="btn btn-xs btn-default" type="button">'.$ui['detail'].'</button> <button class="btn btn-xs btn-danger" type="button">'.$ui['delete'].'</button>';
+        }
+        if (preg_match('/^(ID|id)$/', $text)) return (string) ($rowIndex + 1);
+        if ($colIndex === 0 && $colCount > 8) return '<input type="checkbox">';
+        if ($contains($text, ['GA4'])) return 'G-' . $prefix . 'GA4' . ($rowIndex + 1);
+        if ($contains($text, ['GTM'])) return 'GTM-' . $prefix . ($rowIndex + 1);
+        if ($contains($text, ['Facebook', 'facebook', 'FB'])) return 'FB-' . $prefix . 'PX' . ($rowIndex + 1);
+        if ($contains($text, ['TikTok', 'tiktok'])) return 'TT-' . $prefix . 'PX' . ($rowIndex + 1);
+        if ($contains($text, ['Appsflyer', 'appsflyer'])) return 'AF-' . $prefix . '-APP' . ($rowIndex + 1);
+        if ($contains($text, ['Adjust', 'adjust', 'app_token'])) return 'adj_' . strtolower($prefix) . '_token_' . ($rowIndex + 1);
+        if ($contains($text, ['gps_adid'])) return 'gps_adid';
+        if ($contains($text, ['idfa'])) return 'idfa';
+        if ($contains($text, ['adid'])) return 'adid';
+        if ($contains($text, ['HTTPS', 'https'])) return '<span class="badge badge-success">'.$ui['enabled'].'</span>';
+        if ($contains($text, ['token', 'Token'])) return strtolower($prefix) . '_token_' . ($rowIndex + 1);
+        if ($contains($text, ['URL', 'url', 'link', 'Link'])) return '<span class="text-primary">'.$ui['copyLink'].'</span>';
+        if ($colCount > 5 && $colIndex === $colCount - 2) return '<span class="badge badge-success">'.$ui['enabled'].'</span>';
+        if ($colIndex === 0) return (string) ($rowIndex + 1);
+        return e($text) . ' #' . ($rowIndex + 1);
+    };
+    $plainValue = function ($column, $rowIndex = 0, $colIndex = 0, $colCount = 0, $page = [], $tab = []) use ($sampleValue) {
+        return trim(strip_tags(html_entity_decode($sampleValue($column, $rowIndex, $colIndex, $colCount, $page, $tab), ENT_QUOTES, 'UTF-8')));
+    };
+    $renderRows = function ($columns, $count = 2, $page = [], $tab = [], $rows = [], $emptyTable = false) use ($sampleValue) {
+        $html = '';
+        $colCount = count($columns);
+        $sourceRows = !empty($rows) ? $rows : [];
+        if ($emptyTable && empty($sourceRows)) {
+            return '<tr><td colspan="'.$colCount.'" class="text-center text-muted" style="padding:28px;">暂无数据</td></tr>';
+        }
+        $total = !empty($sourceRows) ? count($sourceRows) : $count;
+        for ($i = 0; $i < $total; $i++) {
+            $html .= '<tr>';
+            foreach ($columns as $colIndex => $column) {
+                $value = $sourceRows[$i][$colIndex] ?? null;
+                $html .= '<td>' . ($value !== null ? e($value) : $sampleValue($column, $i, $colIndex, $colCount, $page, $tab)) . '</td>';
+            }
+            $html .= '</tr>';
+        }
+        return $html;
+    };
+@endphp
+
+<style>
+    .tcg-shell-page { font-size: 13px; }
+    .tcg-shell-summary { padding: 12px 14px; margin-bottom: 12px; border: 1px solid #e6e9f0; background: #f8fafc; border-radius: 4px; }
+    .tcg-shell-panel { border: 1px solid #e6e9f0; border-radius: 4px; background: #fff; margin-bottom: 12px; }
+    .tcg-shell-panel__title { padding: 10px 12px; border-bottom: 1px solid #edf0f5; font-weight: 600; }
+    .tcg-shell-panel__body { padding: 12px; }
+    .tcg-shell-filters, .tcg-shell-fields, .tcg-shell-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+    .tcg-shell-field { min-width: 180px; flex: 0 1 220px; }
+    .tcg-shell-field label { display: block; color: #3d4655; font-weight: 600; margin-bottom: 5px; }
+    .tcg-shell-field .form-control { height: 34px; padding: 5px 9px; background: #fff; }
+    .tcg-shell-buttons .btn { margin-right: 0; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .tcg-shell-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tcg-shell-tag { display: inline-block; padding: 5px 9px; border: 1px solid #dce2ea; border-radius: 4px; background: #f8fafc; color: #344050; line-height: 1.3; }
+    .tcg-shell-table { width: 100%; overflow-x: auto; }
+    .tcg-shell-table th { white-space: nowrap; background: #f8fafc; color: #39475a; }
+    .tcg-shell-table td { white-space: nowrap; vertical-align: middle !important; }
+    .tcg-shell-config-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+    .tcg-shell-kv { border: 1px solid #e8edf4; border-radius: 4px; padding: 10px; background: #fbfcfe; }
+    .tcg-shell-kv strong { display:block; color:#3d4655; margin-bottom:6px; }
+    .tcg-shell-switch { display:inline-flex; align-items:center; gap:6px; color:#2f855a; font-weight:600; }
+    .tcg-shell-switch:before { content:''; width:28px; height:16px; border-radius:9px; background:#36b37e; display:inline-block; box-shadow: inset 12px 0 0 rgba(255,255,255,.95); }
+    .tcg-shell-note { color:#7b8794; margin-top:6px; }
+    .tcg-shell-guide { color:#ef4444; line-height:1.65; margin:0 0 14px; }
+    .tcg-shell-guide a { color:#337ab7; text-decoration:none; }
+    .tcg-shell-guide a:hover { color:#23527c; text-decoration:underline; }
+    .tcg-shell-guide code { color:inherit; background:transparent; padding:0; }
+    .tcg-benchmark-intro { margin-bottom:14px; color:#3d4655; line-height:1.65; }
+    .tcg-benchmark-title-row { display:flex; align-items:center; justify-content:space-between; gap:12px; max-width:720px; margin:0 0 8px; }
+    .tcg-benchmark-title-row h4 { margin:0; font-size:15px; font-weight:600; }
+    .tcg-benchmark-fields { display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px; margin:18px 0 0; }
+    .tcg-benchmark-field { width:176px; }
+    .tcg-benchmark-field label { display:block; margin-bottom:5px; color:#222; font-weight:400; }
+    .tcg-benchmark-field .form-control { height:34px; padding:5px 9px; background:#fff; }
+    .tcg-benchmark-actions { display:flex; align-items:center; gap:8px; margin:12px 0 16px; }
+    .tcg-benchmark-actions .btn { min-width:74px; }
+    .tcg-benchmark-table { width:100%; overflow-x:auto; margin-top:8px; }
+    .tcg-benchmark-table table { width:auto; min-width:710px; margin-bottom:0; }
+    .tcg-benchmark-table th { background:#fafafa; color:#222; text-align:center; white-space:nowrap; }
+    .tcg-benchmark-table td { vertical-align:middle !important; white-space:nowrap; }
+    .tcg-benchmark-table .form-control { min-width:175px; height:32px; padding:4px 8px; background:#fff; }
+    .tcg-benchmark-setting-note { color:#ef4444; margin-top:4px; white-space:normal; }
+    .tcg-benchmark-inline-control { display:flex; align-items:center; gap:8px; }
+    .tcg-extension-toggle { margin-top:10px; }
+    .tcg-extension-toggle .btn { color:#596579; background:#fff; border-color:#d9dfe8; box-shadow:none; }
+    .tcg-extension-toggle .btn:hover, .tcg-extension-toggle .btn:focus { color:#337ab7; background:#f8fafc; border-color:#cbd5e1; }
+    .tcg-extension-panel { margin-top:8px; padding:10px 12px; border:1px solid #e5e9f0; background:#f8fafc; border-radius:4px; }
+    .tcg-extension-tabs { margin:0; border-bottom:0; }
+    .tcg-extension-tabs > li > a { margin-right:8px; padding:7px 12px; color:#667085; background:#fff; border:1px solid #dfe4ec; border-radius:4px; }
+    .tcg-extension-tabs > li.active > a, .tcg-extension-tabs > li.active > a:hover, .tcg-extension-tabs > li.active > a:focus { color:#337ab7; background:#eef6ff; border-color:#b9d5f5; }
+</style>
+
+<div
+    class="tcg-shell-page {{ $isPixelPage ? 'notranslate' : '' }}"
+    @if($isPixelPage) translate="no" @endif
+    data-page-code="{{ $page['code'] ?? '' }}"
+    data-save-url="{{ ($page['code'] ?? '') === '12535' ? url(trim(config('admin.route.prefix'), '/').'/tcg/12535/pixel-data') : '' }}"
+    data-log-url="{{ ($page['code'] ?? '') === '12535' ? url(trim(config('admin.route.prefix'), '/').'/tcg/12535/pixel-log') : '' }}"
+    data-csrf-token="{{ csrf_token() }}"
+>
+    @if(!$isPixelPage)
+        <div class="tcg-shell-summary">
+            <strong>{{ $page['title'] }}</strong>
+            <span class="text-muted">({{ $page['category'] }} / {{ $page['code'] }})</span>
+            <div class="text-muted" style="margin-top:6px;">{{ $page['summary'] ?? '' }}</div>
+        </div>
+    @endif
+
+    @if(count($primaryTabIndexes) > 1)
+        <ul class="nav nav-tabs tcg-primary-tabs" role="tablist">
+            @foreach($primaryTabIndexes as $index)
+                @php $tab = $tabs[$index]; @endphp
+                <li class="nav-item">
+                    <a class="nav-link {{ $index === ($primaryTabIndexes[0] ?? -1) ? 'active' : '' }}" data-toggle="tab" href="#tcg-tab-{{ $page['code'] }}-{{ $index }}" role="tab">{{ $tab['title'] ?? ('Tab '.($index + 1)) }}</a>
+                </li>
+            @endforeach
+        </ul>
+    @endif
+
+    @if($isPixelPage && !empty($extensionTabIndexes))
+        <div class="tcg-extension-toggle">
+            <button
+                class="btn btn-default btn-sm collapsed"
+                type="button"
+                data-toggle="collapse"
+                data-target="#tcg-extension-tabs"
+                aria-expanded="false"
+                aria-controls="tcg-extension-tabs"
+            >
+                <i class="fa fa-puzzle-piece"></i>
+                {{ $ui['extensions'] }}
+                <span class="text-muted">({{ count($extensionTabIndexes) }} · {{ $ui['extensionsNote'] }})</span>
+            </button>
+        </div>
+        <div class="collapse" id="tcg-extension-tabs">
+            <div class="tcg-extension-panel">
+                <ul class="nav nav-pills tcg-extension-tabs" role="tablist">
+                    @foreach($extensionTabIndexes as $index)
+                        @php $tab = $tabs[$index]; @endphp
+                        <li class="nav-item">
+                            <a class="nav-link" data-toggle="tab" href="#tcg-tab-{{ $page['code'] }}-{{ $index }}" role="tab">{{ $tab['title'] ?? ('Tab '.($index + 1)) }}</a>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        </div>
+    @endif
+
+    <div class="tab-content" style="padding-top:12px;">
+        @foreach($tabs as $index => $tab)
+            @php
+                $tabTitle = $tab['title'] ?? '';
+                $benchmarkTab = $compactTabBlueprints[$tabTitle] ?? null;
+                $benchmarkKey = $benchmarkTab['key'] ?? '';
+                $isCompactTab = $isPixelPage && !empty($benchmarkTab);
+                $benchmarkLayout = $benchmarkTab['layout'] ?? 'list';
+                if ($isCompactTab) {
+                    $tab['rows'] = [];
+                    $tab['notice'] = [];
+                    $tab['emptyTable'] = true;
+                }
+                $tableColumns = $tab['table'] ?? [];
+                if (empty($tableColumns) && !empty($tab['fields'])) {
+                    $tableColumns = array_merge(['ID'], $tab['fields'], [$ui['status'], $ui['updatedAt'], $ui['action']]);
+                }
+                if (empty($tableColumns) && !empty($tab['filters'])) {
+                    $tableColumns = array_merge(['ID'], $tab['filters'], [$ui['status'], $ui['action']]);
+                }
+                $primarySections = array_values(array_filter($tab['sections'] ?? [], function ($section) {
+                    return !empty($section['primary']);
+                }));
+                $detailSections = array_values(array_filter($tab['sections'] ?? [], function ($section) {
+                    return empty($section['primary']);
+                }));
+                $compactPrimaryButtons = [];
+                if ($isCompactTab) {
+                    $primarySections = [];
+                    $detailSections = [];
+                }
+                $recordCount = !empty($tab['emptyTable'])
+                    ? count($tab['rows'] ?? [])
+                    : count($tab['rows'] ?? [1, 2]);
+            @endphp
+            <div
+                class="tab-pane {{ $index === 0 ? 'active' : '' }}"
+                id="tcg-tab-{{ $page['code'] }}-{{ $index }}"
+                role="tabpanel"
+                @if($isCompactTab)
+                    data-tab-key="{{ $benchmarkKey }}"
+                    data-layout="{{ $benchmarkLayout }}"
+                @endif
+            >
+                @if(count($tabs) === 1)
+                    <h4 style="margin-top:0;margin-bottom:12px;">{{ $tab['title'] ?? $page['title'] }}</h4>
+                @endif
+
+                @if($isCompactTab)
+                    @if(!empty($benchmarkTab['intro']))
+                        <div class="tcg-benchmark-intro">
+                            @foreach($benchmarkTab['intro'] as $introLine)
+                                <div>{{ $introLine }}</div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    @if(!empty($benchmarkTab['presetRows']))
+                        <div class="tcg-benchmark-title-row">
+                            <h4>{{ $benchmarkTab['presetTitle'] ?? '' }}</h4>
+                            @if(!empty($benchmarkTab['primaryButton']))
+                                <button class="btn btn-default btn-sm js-open-link-tool" type="button"><i class="fa fa-search"></i> {{ $benchmarkTab['primaryButton'] }}</button>
+                            @endif
+                        </div>
+                        <div class="tcg-benchmark-table" style="max-width:720px;margin-bottom:12px;">
+                            <table class="table table-bordered">
+                                <thead><tr><th>推广平台</th><th>ID</th><th>操作</th></tr></thead>
+                                <tbody>
+                                    @foreach($benchmarkTab['presetRows'] as $presetIndex => $presetRow)
+                                        <tr>
+                                            <td>{{ $presetRow }}</td>
+                                            <td><input class="form-control tcg-preset-input" data-index="{{ $presetIndex }}" type="text" value=""></td>
+                                            <td><button class="btn btn-default btn-sm js-preset-save" data-index="{{ $presetIndex }}" type="button"><i class="fa fa-edit"></i> 编辑</button></td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
+                    @if(!empty($benchmarkTab['guide']))
+                        <div class="tcg-shell-guide">
+                            @foreach($benchmarkTab['guide'] as $guideLine)
+                                <div>
+                                    @if(is_array($guideLine))
+                                        @foreach($guideLine as $guidePart)
+                                            @if(is_array($guidePart) && !empty($guidePart['href']))
+                                                <a href="{{ $guidePart['href'] }}" target="_blank" rel="noopener noreferrer">{{ $guidePart['text'] ?? $guidePart['href'] }}</a>
+                                            @else
+                                                {{ is_array($guidePart) ? ($guidePart['text'] ?? '') : $guidePart }}
+                                            @endif
+                                        @endforeach
+                                    @else
+                                        {{ $guideLine }}
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    @if($benchmarkLayout === 'settings-table')
+                        @php
+                            $settingsHeader = $benchmarkTab['settingsHeader'] ?? ['设置', '值', '操作'];
+                        @endphp
+                        <div class="tcg-benchmark-table" style="max-width:880px;">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        @foreach($settingsHeader as $header)
+                                            <th>{{ $header }}</th>
+                                        @endforeach
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($benchmarkTab['settings'] as $settingIndex => $setting)
+                                        <tr>
+                                            <td>
+                                                <strong>{{ $setting }}</strong>
+                                                @if(!empty($benchmarkTab['settingNotes'][$setting]))
+                                                    <div class="tcg-benchmark-setting-note">{{ $benchmarkTab['settingNotes'][$setting] }}</div>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <div class="tcg-benchmark-inline-control">
+                                                    <input class="form-control tcg-setting-input" data-index="{{ $settingIndex }}" type="text" value="">
+                                                    @if(count($settingsHeader) < 3)
+                                                        <button class="btn btn-primary btn-sm js-settings-save" type="button">{{ $benchmarkTab['buttons'][0] ?? '提交' }}</button>
+                                                    @endif
+                                                </div>
+                                            </td>
+                                            @if(count($settingsHeader) >= 3)
+                                                <td><button class="btn btn-primary btn-sm js-settings-save" type="button">{{ $benchmarkTab['buttons'][0] ?? '提交' }}</button></td>
+                                            @endif
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @elseif($benchmarkLayout === 'single-submit' || in_array($benchmarkLayout, ['pixel', 'list'], true))
+                        @if(!empty($benchmarkTab['fields']))
+                            <div class="tcg-benchmark-fields tcg-shell-filters">
+                                @foreach($benchmarkTab['fields'] as $fieldIndex => $field)
+                                    <div class="tcg-benchmark-field">
+                                        <label>{{ $field }} :</label>
+                                        @if(!empty($benchmarkTab['selects'][$field]))
+                                            <select class="form-control tcg-record-filter" data-index="{{ $fieldIndex }}">
+                                                @foreach($benchmarkTab['selects'][$field] as $option)
+                                                    <option>{{ $option }}</option>
+                                                @endforeach
+                                            </select>
+                                        @else
+                                            <input
+                                                class="form-control {{ $benchmarkLayout === 'single-submit' ? 'tcg-setting-input' : 'tcg-record-filter' }}"
+                                                data-index="{{ $fieldIndex }}"
+                                                type="text"
+                                                placeholder="{{ $benchmarkTab['placeholders'][$field] ?? '' }}"
+                                            >
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+
+                        @if(!empty($benchmarkTab['buttons']))
+                            <div class="tcg-benchmark-actions">
+                                @foreach($benchmarkTab['buttons'] as $buttonIndex => $button)
+                                    @php
+                                        $benchmarkButtonClass = $benchmarkLayout === 'single-submit'
+                                            ? 'js-settings-save'
+                                            : ($buttonIndex === 0 ? 'js-record-add' : 'js-record-search');
+                                    @endphp
+                                    <button class="btn {{ in_array($button, ['搜索', '提交'], true) ? 'btn-primary' : 'btn-default' }} btn-sm {{ $benchmarkButtonClass }}" type="button">
+                                        @if($button === '新增')<i class="fa fa-plus text-danger"></i>@endif
+                                        @if($button === '搜索')<i class="fa fa-search"></i>@endif
+                                        {{ $button }}
+                                    </button>
+                                @endforeach
+                            </div>
+                        @endif
+                    @endif
+
+                    @if(in_array($benchmarkLayout, ['pixel', 'list'], true) && !empty($benchmarkTab['table']))
+                        <div class="tcg-benchmark-table">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        @foreach($benchmarkTab['table'] as $column)
+                                            <th>{{ $column }}</th>
+                                        @endforeach
+                                    </tr>
+                                </thead>
+                                <tbody class="tcg-record-body"></tbody>
+                            </table>
+                        </div>
+                    @endif
+                @else
+
+                @foreach(($tab['notice'] ?? []) as $notice)
+                    <div class="alert alert-info">{{ $notice }}</div>
+                @endforeach
+
+                @if(!empty($tab['guide']))
+                    <div class="tcg-shell-guide">
+                        @foreach($tab['guide'] as $guideLine)
+                            <div>{{ $guideLine }}</div>
+                        @endforeach
+                    </div>
+                @endif
+
+                @if(!empty($compactPrimaryButtons))
+                    <div class="tcg-shell-buttons" style="margin-bottom:12px;">
+                        @foreach($compactPrimaryButtons as $button)
+                            <button class="btn btn-primary btn-sm" type="button">{{ $button }}</button>
+                        @endforeach
+                    </div>
+                @endif
+
+                @foreach($primarySections as $section)
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">{{ $section['title'] ?? $ui['fields'] }}</div>
+                        <div class="tcg-shell-panel__body">
+                            @if(!empty($section['fields']))
+                                <div class="tcg-shell-config-row">
+                                    @foreach($section['fields'] as $fieldIndex => $field)
+                                        <div class="tcg-shell-kv"><strong>{{ $field }}</strong><input class="form-control" type="text" value="{{ $plainValue($field, 0, $fieldIndex, count($section['fields']), $page, $tab) }}"><div class="tcg-shell-note">{{ $ui['preset'] }}</div></div>
+                                    @endforeach
+                                </div>
+                            @endif
+                            @if(!empty($section['buttons']))
+                                <div class="tcg-shell-buttons">
+                                    @foreach($section['buttons'] as $button)<button class="btn btn-default btn-sm" type="button">{{ $button }}</button>@endforeach
+                                </div>
+                            @endif
+                            @if(!empty($section['items']))
+                                <div class="tcg-shell-tags">@foreach($section['items'] as $item)<span class="tcg-shell-tag">{{ $item }}</span>@endforeach</div>
+                            @endif
+                            @if(!empty($section['table']))
+                                <div class="tcg-shell-table"><table class="table table-bordered table-hover"><thead><tr>@foreach($section['table'] as $column)<th>{{ $column }}</th>@endforeach</tr></thead><tbody>{!! $renderRows($section['table'], 2, $page, $tab, $section['rows'] ?? []) !!}</tbody></table></div>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+
+                @if(!empty($tab['filters']))
+                    <div class="tcg-shell-panel">
+                        @if(!$isCompactTab)
+                            <div class="tcg-shell-panel__title">{{ $ui['filters'] }}</div>
+                        @endif
+                        <div class="tcg-shell-panel__body">
+                            <div class="tcg-shell-filters">
+                                @foreach($tab['filters'] as $filter)
+                                    <div class="tcg-shell-field"><label>{{ $filter }}</label><input class="form-control" type="text" placeholder="{{ $filter }}"></div>
+                                @endforeach
+                            </div>
+                            @php
+                                $filterButtons = $tab['filterButtons'] ?? [];
+                                if (empty($filterButtons)) {
+                                    $filterButtons = [$ui['search'], $ui['reset']];
+                                }
+                            @endphp
+                            @foreach($filterButtons as $buttonIndex => $button)
+                                <button class="btn {{ $buttonIndex === count($filterButtons) - 1 ? 'btn-primary' : 'btn-default' }} btn-sm" type="button">{{ $button }}</button>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+
+                @if(!empty($tab['fields']))
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">{{ $ui['fields'] }}</div>
+                        <div class="tcg-shell-panel__body">
+                            <div class="tcg-shell-fields">
+                                @foreach($tab['fields'] as $fieldIndex => $field)
+                                    <div class="tcg-shell-field"><label>{{ $field }}</label><input class="form-control" type="text" value="{{ $plainValue($field, 0, $fieldIndex, count($tab['fields']), $page, $tab) }}" placeholder="{{ $field }}"></div>
+                                @endforeach
+                            </div>
+                            <div class="tcg-shell-note">{{ $ui['note'] }}</div>
+                        </div>
+                    </div>
+                @endif
+
+                @if(!$isCompactTab && !empty($tab['buttons']))
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">{{ $ui['buttons'] }}</div>
+                        <div class="tcg-shell-panel__body">
+                            <div class="tcg-shell-buttons">
+                                @foreach($tab['buttons'] as $buttonIndex => $button)
+                                    <button class="btn {{ $buttonIndex === 0 ? 'btn-primary' : 'btn-default' }} btn-sm" type="button">{{ $button }}</button>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                @if(!empty($tab['emptyTable']) && !empty($tableColumns))
+                    <div class="tcg-shell-panel">
+                        @if(!$isCompactTab)
+                            <div class="tcg-shell-panel__title">{{ $ui['list'] }}</div>
+                        @endif
+                        <div class="tcg-shell-panel__body">
+                            <div class="tcg-shell-table"><table class="table table-bordered table-hover"><thead><tr>@foreach($tableColumns as $column)<th>{{ $column }}</th>@endforeach</tr></thead><tbody>{!! $renderRows($tableColumns, 2, $page, $tab, $tab['rows'] ?? [], true) !!}</tbody></table></div>
+                            @if(!$isCompactTab)
+                                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:#7b8794;"><span>{{ str_replace(':count', $recordCount, $ui['records']) }}</span><span>{{ $ui['pageNo'] }}</span></div>
+                            @endif
+                        </div>
+                    </div>
+                @endif
+
+                @foreach($detailSections as $section)
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">{{ $section['title'] ?? $ui['fields'] }}</div>
+                        <div class="tcg-shell-panel__body">
+                            @if(!empty($section['fields']))
+                                <div class="tcg-shell-config-row">
+                                    @foreach($section['fields'] as $fieldIndex => $field)
+                                        <div class="tcg-shell-kv"><strong>{{ $field }}</strong><input class="form-control" type="text" value="{{ $plainValue($field, 0, $fieldIndex, count($section['fields']), $page, $tab) }}"><div class="tcg-shell-note">{{ $ui['preset'] }}</div></div>
+                                    @endforeach
+                                </div>
+                            @endif
+                            @if(!empty($section['buttons']))
+                                <div class="tcg-shell-buttons" style="margin-top:12px;">
+                                    @foreach($section['buttons'] as $button)<button class="btn btn-default btn-sm" type="button">{{ $button }}</button>@endforeach
+                                </div>
+                            @endif
+                            @if(!empty($section['items']))
+                                <div class="tcg-shell-tags">@foreach($section['items'] as $item)<span class="tcg-shell-tag">{{ $item }}</span>@endforeach</div>
+                            @endif
+                            @if(!empty($section['table']))
+                                <div class="tcg-shell-table" style="margin-top:12px;"><table class="table table-bordered table-hover"><thead><tr>@foreach($section['table'] as $column)<th>{{ $column }}</th>@endforeach</tr></thead><tbody>{!! $renderRows($section['table'], 2, $page, $tab, $section['rows'] ?? []) !!}</tbody></table></div>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+
+                @if(empty($tab['emptyTable']) && !empty($tableColumns))
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">{{ $ui['list'] }}</div>
+                        <div class="tcg-shell-panel__body">
+                            <div class="tcg-shell-table"><table class="table table-bordered table-hover"><thead><tr>@foreach($tableColumns as $column)<th>{{ $column }}</th>@endforeach</tr></thead><tbody>{!! $renderRows($tableColumns, 2, $page, $tab, $tab['rows'] ?? [], !empty($tab['emptyTable'])) !!}</tbody></table></div>
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;color:#7b8794;"><span>{{ str_replace(':count', $recordCount, $ui['records']) }}</span><span>{{ $ui['pageNo'] }}</span></div>
+                        </div>
+                    </div>
+                @endif
+                @endif
+
+                @if($isPixelPage && ($tab['title'] ?? '') === 'App API对接')
+                    <div style="margin-top:18px;">
+                        @include('admin.tcg-pixel-tools', [
+                            'pixelConfig' => $page['pixelConfig'] ?? [],
+                            'pixelLogs' => $page['pixelLogs'] ?? [],
+                        ])
+                    </div>
+                @endif
+
+                @if(!$isCompactTab)
+                    <div class="tcg-shell-panel">
+                        <div class="tcg-shell-panel__title">{{ $ui['statusConfig'] }}</div>
+                        <div class="tcg-shell-panel__body">
+                            <span class="tcg-shell-switch">{{ $ui['enabled'] }}</span>
+                            <span class="text-muted" style="margin-left:12px;">{{ $ui['lastUpdate'] }}: {{ date('Y-m-d H:i') }}</span>
+                            <div class="tcg-shell-buttons" style="margin-top:12px;"><button class="btn btn-primary btn-sm" type="button">{{ $ui['save'] }}</button><button class="btn btn-default btn-sm" type="button">{{ $ui['logs'] }}</button><button class="btn btn-default btn-sm" type="button">{{ $ui['copy'] }}</button></div>
+                        </div>
+                    </div>
+                @endif
+            </div>
+        @endforeach
+    </div>
+</div>
+
+@if($isPixelPage)
+<div class="modal fade" id="tcgRecordModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close js-record-editor-close" aria-label="关闭"><span aria-hidden="true">&times;</span></button>
+                <h4 class="modal-title" id="tcgRecordModalTitle">新增记录</h4>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="tcgRecordEditorTab">
+                <input type="hidden" id="tcgRecordEditorId">
+                <div id="tcgRecordEditorFields"></div>
+                <div class="form-group" id="tcgRecordEditorEnabledRow" style="display:none;">
+                    <label for="tcgRecordEditorEnabled">状态</label>
+                    <select class="form-control" id="tcgRecordEditorEnabled">
+                        <option value="1">启用</option>
+                        <option value="0">关闭</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default js-record-editor-close">取消</button>
+                <button type="button" class="btn btn-primary js-record-editor-save">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+@endif
+
+<script>
+(function ($) {
+    'use strict';
+
+    var page = $('.tcg-shell-page[data-page-code="{{ $page['code'] ?? '' }}"]').last();
+    if (!page.length) {
+        return;
+    }
+    var pixelState = @json($page['pixelConfig']['benchmark']['tabs'] ?? []);
+    var pixelSchemas = @json($benchmarkClientSchemas);
+    var recordModal = $('#tcgRecordModal');
+
+    page.on('shown.bs.tab', '.tcg-extension-tabs a[data-toggle="tab"]', function () {
+        page.find('.tcg-primary-tabs li, .tcg-primary-tabs a').removeClass('active');
+    });
+
+    page.on('shown.bs.tab', '.tcg-primary-tabs a[data-toggle="tab"]', function () {
+        page.find('.tcg-extension-tabs li, .tcg-extension-tabs a').removeClass('active');
+    });
+
+    function emptyPixelTabState() {
+        return { records: [], settings: [], presets: [] };
+    }
+
+    function getPixelTabState(tabKey) {
+        if (!pixelState[tabKey]) {
+            pixelState[tabKey] = emptyPixelTabState();
+        }
+        pixelState[tabKey].records = Array.isArray(pixelState[tabKey].records) ? pixelState[tabKey].records : [];
+        pixelState[tabKey].settings = Array.isArray(pixelState[tabKey].settings) ? pixelState[tabKey].settings : [];
+        pixelState[tabKey].presets = Array.isArray(pixelState[tabKey].presets) ? pixelState[tabKey].presets : [];
+        return pixelState[tabKey];
+    }
+
+    function escapeHtml(value) {
+        return $('<div></div>').text(value == null ? '' : String(value)).html();
+    }
+
+    function requestPixelMutation(payload) {
+        return $.ajax({
+            url: page.data('saveUrl'),
+            method: 'POST',
+            contentType: 'application/json; charset=UTF-8',
+            data: JSON.stringify(payload),
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': page.data('csrfToken')
+            }
+        }).done(function (response) {
+            if (response && response.status && response.data) {
+                pixelState[payload.tab] = response.data;
+            }
+        }).fail(function (xhr) {
+            var response = xhr.responseJSON || {};
+            notify('error', response.message || '保存失败，请稍后重试');
+        });
+    }
+
+    function findPixelRecord(tabKey, recordId) {
+        var records = getPixelTabState(tabKey).records;
+        for (var index = 0; index < records.length; index++) {
+            if (String(records[index].id || '') === String(recordId || '')) {
+                return records[index];
+            }
+        }
+        return null;
+    }
+
+    function buildPixelLink(record) {
+        var values = Array.isArray(record.values) ? record.values : [];
+        var domain = $.trim(values[0] || '').replace(/\/+$/, '');
+        if (!domain) {
+            return '';
+        }
+        if (!/^https?:\/\//i.test(domain)) {
+            domain = 'https://' + domain;
+        }
+        var affiliateCode = $.trim(values[1] || '');
+        var params = [];
+        if (affiliateCode) params.push('affiliateCode=' + encodeURIComponent(affiliateCode));
+        if ($.trim(values[2] || '')) params.push('gtagId=' + encodeURIComponent(values[2]));
+        if ($.trim(values[3] || '')) params.push('gtmId=' + encodeURIComponent(values[3]));
+        if ($.trim(values[4] || '')) params.push('fbPixelId=' + encodeURIComponent(values[4]));
+        if ($.trim(values[5] || '')) params.push('tiktokPixelId=' + encodeURIComponent(values[5]));
+        if ($.trim(values[6] || '')) params.push('af_app_id=' + encodeURIComponent(values[6]));
+        return domain + (affiliateCode ? '/m/register' : '/m/index.html') + (params.length ? '?' + params.join('&') : '');
+    }
+
+    function renderPixelRecords(scope) {
+        var tabKey = scope.data('tabKey');
+        var schema = pixelSchemas[tabKey];
+        var body = scope.find('.tcg-record-body').first();
+        if (!schema || !body.length) {
+            return;
+        }
+
+        var state = getPixelTabState(tabKey);
+        body.empty();
+        if (!state.records.length) {
+            body.append('<tr class="tcg-empty-row"><td colspan="' + schema.columns.length + '" class="text-center text-muted" style="padding:28px;">暂无数据</td></tr>');
+            return;
+        }
+
+        $.each(state.records, function (recordIndex, record) {
+            var values = Array.isArray(record.values) ? record.values : [];
+            var valueIndex = 0;
+            var cells = [];
+            $.each(schema.columns, function (columnIndex) {
+                if (columnIndex === schema.idIndex) {
+                    cells.push('<td>' + (recordIndex + 1) + '</td>');
+                    return;
+                }
+                if (columnIndex === schema.linkIndex) {
+                    var link = buildPixelLink(record);
+                    cells.push('<td><button type="button" class="btn btn-xs btn-default js-record-copy-link" data-link="' + escapeHtml(link) + '"' + (link ? '' : ' disabled') + '><i class="fa fa-copy"></i> 复制链接</button></td>');
+                    return;
+                }
+                if (columnIndex === schema.actionIndex) {
+                    cells.push(
+                        '<td>' +
+                        '<button type="button" class="btn btn-xs btn-primary js-record-edit" data-id="' + escapeHtml(record.id) + '"><i class="fa fa-edit"></i> 编辑</button> ' +
+                        '<button type="button" class="btn btn-xs btn-danger js-record-delete" data-id="' + escapeHtml(record.id) + '"><i class="fa fa-trash"></i> 删除</button>' +
+                        '</td>'
+                    );
+                    return;
+                }
+                if (columnIndex === schema.toggleIndex) {
+                    var enabled = record.enabled !== false;
+                    cells.push('<td><button type="button" class="btn btn-xs ' + (enabled ? 'btn-success' : 'btn-default') + ' js-record-toggle" data-id="' + escapeHtml(record.id) + '" data-enabled="' + (enabled ? '1' : '0') + '">' + (enabled ? '启用' : '关闭') + '</button></td>');
+                    return;
+                }
+                cells.push('<td>' + escapeHtml(values[valueIndex] || '') + '</td>');
+                valueIndex++;
+            });
+            body.append('<tr data-record-id="' + escapeHtml(record.id) + '">' + cells.join('') + '</tr>');
+        });
+    }
+
+    function renderAllPixelRecords() {
+        page.find('.tab-pane[data-tab-key]').each(function () {
+            var scope = $(this);
+            var tabKey = scope.data('tabKey');
+            var state = getPixelTabState(tabKey);
+            scope.find('.tcg-setting-input').each(function () {
+                var input = $(this);
+                input.val(state.settings[Number(input.data('index'))] || '');
+            });
+            scope.find('.tcg-preset-input').each(function () {
+                var input = $(this);
+                input.val(state.presets[Number(input.data('index'))] || '');
+            });
+            renderPixelRecords(scope);
+        });
+    }
+
+    function openRecordEditor(scope, record) {
+        var tabKey = scope.data('tabKey');
+        var schema = pixelSchemas[tabKey];
+        if (!schema || !schema.fields.length) {
+            notify('warning', '当前页面没有可新增的字段');
+            return;
+        }
+
+        var values = record && Array.isArray(record.values) ? record.values : [];
+        $('#tcgRecordEditorTab').val(tabKey);
+        $('#tcgRecordEditorId').val(record ? record.id : '');
+        $('#tcgRecordModalTitle').text(record ? '编辑记录' : '新增记录');
+        $('#tcgRecordEditorEnabled').val(record && record.enabled === false ? '0' : '1');
+        $('#tcgRecordEditorEnabledRow').toggle(schema.toggleIndex >= 0);
+
+        var fields = $('#tcgRecordEditorFields').empty();
+        $.each(schema.fields, function (index, field) {
+            fields.append(
+                '<div class="form-group">' +
+                '<label>' + escapeHtml(field) + '</label>' +
+                '<input type="text" class="form-control tcg-record-editor-input" data-index="' + index + '" value="' + escapeHtml(values[index] || '') + '">' +
+                '</div>'
+            );
+        });
+
+        if (recordModal.length && typeof recordModal.modal === 'function') {
+            recordModal.modal('show');
+        } else {
+            recordModal.show();
+        }
+    }
+
+    function closeRecordEditor() {
+        if (recordModal.length && typeof recordModal.modal === 'function') {
+            recordModal.modal('hide');
+        } else {
+            recordModal.hide();
+        }
+    }
+
+    renderAllPixelRecords();
+
+    page.on('click', '.js-record-add', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        openRecordEditor($(this).closest('.tab-pane[data-tab-key]'), null);
+    });
+
+    page.on('click', '.js-record-search', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var scope = $(this).closest('.tab-pane[data-tab-key]');
+        var terms = [];
+        scope.find('.tcg-record-filter').each(function () {
+            var input = $(this);
+            if (input.is('select') && input.prop('selectedIndex') === 0) {
+                return;
+            }
+            var value = $.trim(input.val()).toLowerCase();
+            if (value) terms.push(value);
+        });
+        var visible = 0;
+        scope.find('.tcg-record-body tr').each(function () {
+            var row = $(this);
+            if (row.hasClass('tcg-empty-row')) {
+                return;
+            }
+            var text = row.text().toLowerCase();
+            var matched = !terms.length || terms.every(function (term) {
+                return text.indexOf(term) !== -1;
+            });
+            row.toggle(matched);
+            if (matched) visible++;
+        });
+        notify('success', '筛选完成，显示 ' + visible + ' 条');
+    });
+
+    page.on('click', '.js-record-edit', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var scope = $(this).closest('.tab-pane[data-tab-key]');
+        openRecordEditor(scope, findPixelRecord(scope.data('tabKey'), $(this).data('id')));
+    });
+
+    page.on('click', '.js-record-delete', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var button = $(this);
+        var scope = button.closest('.tab-pane[data-tab-key]');
+        if (!window.confirm('确认删除这条记录吗？删除后无法恢复。')) {
+            return;
+        }
+        requestPixelMutation({
+            action: 'record.delete',
+            tab: scope.data('tabKey'),
+            id: String(button.data('id'))
+        }).done(function (response) {
+            if (response && response.status) {
+                renderPixelRecords(scope);
+                notify('success', '记录已删除');
+            }
+        });
+    });
+
+    page.on('click', '.js-record-toggle', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var button = $(this);
+        var scope = button.closest('.tab-pane[data-tab-key]');
+        requestPixelMutation({
+            action: 'record.toggle',
+            tab: scope.data('tabKey'),
+            id: String(button.data('id')),
+            enabled: String(button.data('enabled')) !== '1'
+        }).done(function (response) {
+            if (response && response.status) {
+                renderPixelRecords(scope);
+                notify('success', '状态已更新');
+            }
+        });
+    });
+
+    page.on('click', '.js-settings-save', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var scope = $(this).closest('.tab-pane[data-tab-key]');
+        var values = [];
+        scope.find('.tcg-setting-input').each(function () {
+            values[Number($(this).data('index'))] = $(this).val();
+        });
+        requestPixelMutation({
+            action: 'settings.save',
+            tab: scope.data('tabKey'),
+            values: values
+        }).done(function (response) {
+            if (response && response.status) {
+                notify('success', '设置已保存');
+            }
+        });
+    });
+
+    page.on('click', '.js-preset-save', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var button = $(this);
+        var scope = button.closest('.tab-pane[data-tab-key]');
+        var index = Number(button.data('index'));
+        requestPixelMutation({
+            action: 'preset.save',
+            tab: scope.data('tabKey'),
+            index: index,
+            value: scope.find('.tcg-preset-input[data-index="' + index + '"]').val()
+        }).done(function (response) {
+            if (response && response.status) {
+                notify('success', '预设推广 ID 已保存');
+            }
+        });
+    });
+
+    page.on('click', '.js-record-copy-link', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        copyText($(this).attr('data-link'));
+    });
+
+    page.on('click', '.js-open-link-tool', function (event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var tools = $('#tcgPixelTools');
+        var pane = tools.closest('.tab-pane');
+        if (!tools.length || !pane.length) {
+            notify('warning', '投放链接生成器暂不可用');
+            return;
+        }
+        page.find('a[href="#' + pane.attr('id') + '"]').tab('show');
+        $('html, body').animate({ scrollTop: tools.offset().top - 80 }, 180);
+    });
+
+    recordModal.on('click', '.js-record-editor-close', function () {
+        closeRecordEditor();
+    });
+
+    recordModal.on('click', '.js-record-editor-save', function () {
+        var tabKey = $('#tcgRecordEditorTab').val();
+        var recordId = $('#tcgRecordEditorId').val();
+        var scope = page.find('.tab-pane[data-tab-key="' + tabKey + '"]');
+        var values = [];
+        recordModal.find('.tcg-record-editor-input').each(function () {
+            values[Number($(this).data('index'))] = $(this).val();
+        });
+        var payload = recordId ? {
+            action: 'record.update',
+            tab: tabKey,
+            id: recordId,
+            values: values,
+            enabled: $('#tcgRecordEditorEnabled').val() === '1'
+        } : {
+            action: 'record.create',
+            tab: tabKey,
+            values: values,
+            enabled: $('#tcgRecordEditorEnabled').val() === '1'
+        };
+        requestPixelMutation(payload).done(function (response) {
+            if (response && response.status) {
+                closeRecordEditor();
+                renderPixelRecords(scope);
+                notify('success', recordId ? '记录已更新' : '记录已新增');
+            }
+        });
+    });
+
+    function notify(type, message) {
+        if (window.Dcat && typeof window.Dcat[type] === 'function') {
+            window.Dcat[type](message);
+            return;
+        }
+        if (window.console) {
+            console.log('[TCG][' + type + '] ' + message);
+        }
+    }
+
+    function copyText(text) {
+        if (!text) {
+            notify('warning', '当前区域没有可复制内容');
+            return;
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(function () {
+                notify('success', '内容已复制');
+            });
+            return;
+        }
+        var input = $('<textarea style="position:fixed;left:-9999px;top:-9999px;"></textarea>').val(text).appendTo('body');
+        input[0].select();
+        document.execCommand('copy');
+        input.remove();
+        notify('success', '内容已复制');
+    }
+
+    function postAction(action, context) {
+        var url = page.data('logUrl');
+        if (!url) {
+            return;
+        }
+        $.ajax({
+            url: url,
+            method: 'POST',
+            contentType: 'application/json; charset=UTF-8',
+            data: JSON.stringify({
+                action: action,
+                context: context || {}
+            }),
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': page.data('csrfToken')
+            }
+        });
+    }
+
+    function currentScope(button) {
+        var tab = button.closest('.tab-pane');
+        return tab.length ? tab : page;
+    }
+
+    page.on('click', 'button', function (event) {
+        var button = $(this);
+        if (button.closest('#tcgPixelTools').length) {
+            return;
+        }
+        if (button.is('.js-record-add, .js-record-search, .js-record-edit, .js-record-delete, .js-record-toggle, .js-settings-save, .js-preset-save, .js-record-copy-link, .js-open-link-tool')) {
+            return;
+        }
+
+        var label = $.trim(button.text());
+        var scope = currentScope(button);
+
+        if (label === '搜索') {
+            var terms = [];
+            scope.find('.tcg-shell-filters input').each(function () {
+                var value = $.trim($(this).val()).toLowerCase();
+                if (value) {
+                    terms.push(value);
+                }
+            });
+            var visible = 0;
+            scope.find('tbody tr').each(function () {
+                var row = $(this);
+                var text = row.text().toLowerCase();
+                var matched = !terms.length || terms.every(function (term) {
+                    return text.indexOf(term) !== -1;
+                });
+                row.toggle(matched);
+                if (matched) {
+                    visible++;
+                }
+            });
+            notify('success', '筛选完成，显示 ' + visible + ' 行');
+            postAction('shell.search', { terms: terms, visible: visible });
+            return;
+        }
+
+        if (label === '重置') {
+            scope.find('.tcg-shell-filters input').val('');
+            scope.find('tbody tr').show();
+            notify('success', '筛选条件已重置');
+            postAction('shell.reset', {});
+            return;
+        }
+
+        if (label === '编辑') {
+            var row = button.closest('tr');
+            var editing = row.attr('data-editing') === '1';
+            row.attr('data-editing', editing ? '0' : '1');
+            row.find('td').not(':last').attr('contenteditable', editing ? 'false' : 'true');
+            button.text(editing ? '编辑' : '完成');
+            notify('success', editing ? '当前行修改已保留在页面预览' : '当前行已进入编辑状态');
+            postAction('shell.edit', { editing: !editing });
+            return;
+        }
+
+        if (label === '详情') {
+            notify('info', button.closest('tr').text().replace(/\s+/g, ' ').trim());
+            postAction('shell.detail', {});
+            return;
+        }
+
+        if (label === '删除') {
+            if (window.confirm('仅从当前预览中隐藏该行，是否继续？')) {
+                button.closest('tr').hide();
+                notify('success', '当前行已从预览隐藏');
+                postAction('shell.delete_preview', {});
+            }
+            return;
+        }
+
+        if (/复制/.test(label)) {
+            var panel = button.closest('.tcg-shell-panel');
+            var candidate = panel.find('textarea, input').filter(function () {
+                return /^https?:\/\//i.test($.trim($(this).val()));
+            }).first().val();
+            if (!candidate) {
+                candidate = panel.find('td, .tcg-shell-tag').filter(function () {
+                    return /https?:\/\//i.test($(this).text());
+                }).first().text();
+            }
+            copyText($.trim(candidate || panel.text()));
+            postAction('shell.copy', { label: label });
+            return;
+        }
+
+        if (label === '查看日志') {
+            var logTab = page.find('a[href="#tcg-tool-log"]');
+            if (logTab.length) {
+                logTab.tab('show');
+                $('html, body').animate({ scrollTop: page.offset().top }, 150);
+            }
+            postAction('shell.view_log', {});
+            return;
+        }
+
+        if (/保存|提交/.test(label)) {
+            var fields = {};
+            scope.find('.tcg-shell-field, .tcg-shell-kv').not('#tcgPixelTools .tcg-shell-field, #tcgPixelTools .tcg-shell-kv').each(function (index) {
+                var field = $(this);
+                var key = $.trim(field.find('label, strong').first().text()) || ('field_' + index);
+                var input = field.find('input, select, textarea').first();
+                if (input.length) {
+                    fields[key] = input.val();
+                }
+            });
+            window.localStorage.setItem('tcg_shell_' + page.data('pageCode') + '_draft', JSON.stringify(fields));
+            notify('success', label + '完成，当前配置草稿已保存');
+            postAction('shell.save_preview', { label: label, fieldCount: Object.keys(fields).length });
+            return;
+        }
+
+        notify('info', label + ' 已触发，当前记录已写入操作日志');
+        postAction('shell.button', { label: label });
+    });
+})(jQuery);
+</script>

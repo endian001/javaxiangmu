@@ -1,0 +1,68 @@
+<?php
+
+use Illuminate\Routing\Router;
+use Illuminate\Support\Facades\Route;
+use Dcat\Admin\Admin;
+
+Admin::routes();
+
+Route::group([
+	'prefix'        => config('admin.route.prefix'),
+	'namespace'     => config('admin.route.namespace'),
+	'middleware'    => config('admin.route.middleware'),
+], function (Router $router) {
+
+	$router->get('/', 'HomeController@index');
+	$router->resource('users', 'UserController');
+	$router->resource('user-vips', 'UserVipController');
+	$router->resource('messages', 'MessageController');
+	$router->resource('work-orders', 'WorkOrderController');
+	$router->resource('recharge','RechargeController');
+
+
+	$router->resource('red-envelopes','RedEnvelopesController');
+	$router->resource('code-pay','CodePayController');
+
+	$router->resource('withdraws','WithdrawController');
+	$router->resource('banks','BankController');
+	$router->resource('syslog','SyslogController');
+	$router->resource('pay-settings','PaySettingController');
+	$router->resource('pay-types','PayTypeController');
+	$router->get('/pay-config','SystemConfigController@index');
+	$router->resource('activities','ActivityController');
+	$router->resource('fanshui','FanshuiLogController');
+	$router->resource('activity-apply','ActivityApplyController');
+	$router->resource('activity-types','ActivityTypeController');
+	$router->resource('transfer-logs','TransferLogController');
+	$router->resource('finance-report','FinanceReportController');
+	$router->resource('game-records','GameRecordController');
+	$router->resource('apis','ApiController');
+	$router->resource('game-lists','GameListController');
+	$router->resource('game-lists-app','GameListAppController');
+	$router->get('/ops-audit','OpsAuditController@index');
+	$router->get('/system-setting','SystemConfigController@siteSetting');
+	$router->get('/nav-redirect-setting','SystemConfigController@navRedirectSetting');
+	$router->resource('bet-report','BetReportController');
+	$router->resource('bet-sum','BetSumController');
+	$router->resource('templates','TemplateController');
+	$router->get('/templates','TemplateController@index');
+	$router->get('/setDefaultTemplate/{id}/{type}','TemplateController@setDefaultTemplate');
+	$router->resource('agents','AgentController');
+	$router->resource('agent-applys','AgentApplyController');
+	$router->resource('agent-fenxiang','AgentFenxiangController');
+	$router->resource('agent-commission','AgentCommissionController');
+	$router->resource('agent-settlements','AgentSettlementController');
+
+	$router->resource('userredpacket','UserredpacketController');
+	$router->resource('usercard','UserCardController');
+	$router->resource('articlescate','ArticlescateController');
+	$router->resource('articles','ArticleController');
+
+	$router->get('/user/upbalance/{id}','UserController@upbalance');
+	$router->resource('user-operate-logs','UserOperateLogController');
+	$router->resource('banners','BannerController');
+	$router->get('clear','SystemConfigController@clear');
+	$router->post('alert','HomeController@getAlertData');
+	$router->resource('user-jk', 'UserActivityController');
+
+});

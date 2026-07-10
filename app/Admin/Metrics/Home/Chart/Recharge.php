@@ -1,0 +1,120 @@
+<?php
+
+namespace App\Admin\Metrics\Home\Chart;
+
+use App\Models\Recharge as ModelsRecharge;
+use Dcat\Admin\Admin;
+use Dcat\Admin\Widgets\ApexCharts\Chart;
+
+class Recharge extends Chart
+{
+    public function __construct($containerSelector = null, $options = [])
+    {
+        parent::__construct($containerSelector, $options);
+
+        $this->setUpOptions();
+    }
+
+    /**
+     * 初始化图表配置
+     */
+    protected function setUpOptions()
+    {
+        $color = Admin::color();
+
+        $colors = [$color->primary(), $color->primaryDarker()];
+
+        $this->options([
+            'colors' => $colors,
+            'chart' => [
+                'type' => 'area',
+                'height' => 430
+            ],
+            'plotOptions' => [
+                'bar' => [
+                    'horizontal' => true,
+                    'dataLabels' => [
+                        'position' => 'top',
+                    ],
+                ]
+            ],
+            'dataLabels' => [
+                'enabled' => true,
+                'offsetX' => -6,
+                'style' => [
+                    'fontSize' => '12px',
+                    'colors' => ['#fff']
+                ]
+            ],
+            'stroke' => [
+                'show' => true,
+                'width' => 1,
+                'colors' => ['#fff']
+            ],
+            'xaxis' => [
+                'categories' => [],
+            ],
+        ]);
+    }
+
+    /**
+     * 处理图表数据
+     */
+    protected function buildData()
+    {
+        for ($i=7; $i >= 0; $i--) { 
+            $date[] = date('Y-m-d',strtotime("-".$i."days"));
+            $date_x[] = date('m-d',strtotime("-".$i."days"));
+        }
+        $sum = [];
+        foreach ($date as $k => $v) {
+            $sum[$k] = ModelsRecharge::whereDate('created_at',$v)->where('state',2)->sum('amount');
+        }
+        // 执行你的数据查询逻辑
+        $data = [
+            [
+                'data' => $sum
+            ]
+        ];
+        $categories = $date_x;
+
+        $this->withData($data);
+        $this->withCategories($categories);
+    }
+
+    /**
+     * 设置图表数据
+     *
+     * @param array $data
+     *
+     * @return $this
+     */
+    public function withData(array $data)
+    {
+        return $this->option('series', $data);
+    }
+
+    /**
+     * 设置图表类别.
+     *
+     * @param array $data
+     *
+     * @return $this
+     */
+    public function withCategories(array $data)
+    {
+        return $this->option('xaxis.categories', $data);
+    }
+
+    /**
+     * 渲染图表
+     *
+     * @return string
+     */
+    public function render()
+    {
+        $this->buildData();
+
+        return parent::render();
+    }
+}
