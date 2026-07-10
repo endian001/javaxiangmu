@@ -619,8 +619,8 @@ class IndexController extends Controller
     {
         $type = $request->input('type') ?? 2;
         $bannerlist = array(
-            ["src"=>"/static/style/2ddb21b7a3564870bbac1b02e05b3f8d.jpg","background"=>"#f4f6ff"],
-            ["src"=>"/static/style/008dc0a27cdf42708dcce9b516695469.jpg","background"=>"rgb(100, 61, 202)"],
+            ["src"=>"/assets/promotions/welcome-banner.png","background"=>"#f4f6ff"],
+            ["src"=>"/assets/promotions/deposit-banner.png","background"=>"rgb(100, 61, 202)"],
             );
         $notice = Banner::where('type',$type)->select("pic as src","jump_url")->get()->toArray();    
        

@@ -8,7 +8,9 @@ use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use App\Models\SystemConfig;
 use Validator;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Request;
+use Illuminate\Support\Facades\Schema;
 
 class Controller extends BaseController
 {
@@ -36,6 +38,7 @@ class Controller extends BaseController
     protected function customerServicePayload()
     {
         $url = $this->customerServiceLink();
+        $services = $this->customerServiceEntries();
         $streamChat = $this->customerStreamChatStatus();
         $streamReady = $streamChat['enabled'] && $streamChat['configured'];
         $appUrl = rtrim((string) env('APP_URL'), '/');
@@ -51,8 +54,10 @@ class Controller extends BaseController
             'service_link' => $serviceUrl,
             'domain' => $appUrl,
             'service_type' => $serviceType,
-            'configured' => $url !== '' || $streamReady || $workOrderEnabled,
+            'configured' => $url !== '' || $streamReady || $workOrderEnabled || count($services) > 0,
             'link_configured' => $url !== '',
+            'services' => $services,
+            'service_count' => count($services),
             'work_order_enabled' => $workOrderEnabled,
             'work_order_page_url' => $workOrderPageUrl,
             'work_order_list_url' => $appUrl . '/api/work-orders',
@@ -66,6 +71,78 @@ class Controller extends BaseController
             'stream_token_url' => $appUrl . '/api/stream/token',
             'stream_channel_url' => $appUrl . '/api/stream/channel',
         ];
+    }
+
+    protected function customerServiceEntries($playerLevel = 0)
+    {
+        $services = [];
+        $seenUrls = [];
+
+        if (Schema::hasTable('platform_customer_services')) {
+            $rows = DB::table('platform_customer_services')
+                ->where('status', 1)
+                ->where('min_player_level', '<=', max(0, (int) $playerLevel))
+                ->orderBy('position')
+                ->orderBy('id')
+                ->get();
+
+            foreach ($rows as $row) {
+                $url = trim((string) $row->service_url);
+                if (!$this->isUsableCustomerContactUrl($url)) {
+                    continue;
+                }
+
+                $seenUrls[strtolower($url)] = true;
+                $services[] = [
+                    'id' => (int) $row->id,
+                    'service_type' => strtolower(trim((string) $row->service_type)),
+                    'display_name' => trim((string) $row->display_name),
+                    'service_url' => $url,
+                    'position' => (int) $row->position,
+                ];
+            }
+        }
+
+        $platformLinks = [
+            ['platform_facebook_url', 'facebook', 'Facebook'],
+            ['platform_telegram_url', 'telegram', 'Telegram'],
+            ['platform_whatsapp_url', 'whatsapp', 'WhatsApp'],
+            ['platform_instagram_url', 'instagram', 'Instagram'],
+            ['platform_livechat_url', 'online', 'Livechat'],
+            ['platform_telegram_bot_url', 'telegram', 'Telegram Bot'],
+        ];
+        foreach ($platformLinks as $index => $definition) {
+            [$key, $type, $label] = $definition;
+            $url = trim((string) SystemConfig::getValue($key));
+            $urlKey = strtolower($url);
+            if (
+                !$this->isUsableCustomerContactUrl($url) ||
+                isset($seenUrls[$urlKey])
+            ) {
+                continue;
+            }
+
+            $seenUrls[$urlKey] = true;
+            $services[] = [
+                'id' => 0,
+                'service_type' => $type,
+                'display_name' => $label,
+                'service_url' => $url,
+                'position' => 100000 + $index,
+            ];
+        }
+
+        return $services;
+    }
+
+    protected function isUsableCustomerContactUrl($url)
+    {
+        $url = trim((string) $url);
+        if (preg_match('/^tel:\+?[0-9()\-\s]{5,30}$/i', $url)) {
+            return true;
+        }
+
+        return $this->isUsableCustomerServiceUrl($url);
     }
 
     protected function customerServiceLink()

@@ -1,0 +1,464 @@
+.home-carousel {
+  position: relative;
+  height: clamp(220px, 25vw, 330px);
+  min-height: 220px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #dff3ff;
+  box-shadow: 0 12px 30px rgba(50, 109, 148, .18);
+}
+
+.home-carousel__viewport,
+.home-carousel__track,
+.home-carousel__slide,
+.home-carousel__slide-link {
+  width: 100%;
+  height: 100%;
+}
+
+.home-carousel__viewport {
+  overflow: hidden;
+}
+
+.home-carousel__track {
+  display: flex;
+  transition: transform .48s cubic-bezier(.22, .61, .36, 1);
+  will-change: transform;
+}
+
+.home-carousel__slide {
+  min-width: 100%;
+  overflow: hidden;
+}
+
+.home-carousel__slide-link {
+  display: block;
+}
+
+.home-carousel__slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-carousel__arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, .76);
+  border-radius: 50%;
+  background: rgba(22, 53, 77, .52);
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(15, 44, 66, .22);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.home-carousel__arrow:hover,
+.home-carousel__arrow:focus-visible {
+  background: rgba(20, 134, 194, .9);
+}
+
+.home-carousel__arrow.prev {
+  left: 16px;
+}
+
+.home-carousel__arrow.next {
+  right: 16px;
+}
+
+.home-carousel__arrow svg {
+  width: 23px;
+  height: 23px;
+}
+
+.home-carousel__dots {
+  position: absolute;
+  right: 0;
+  bottom: 13px;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+}
+
+.home-carousel__dots button {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .72);
+  box-shadow: 0 2px 8px rgba(22, 61, 87, .22);
+  transition: width .25s ease, background .25s ease;
+  cursor: pointer;
+}
+
+.home-carousel__dots button.active {
+  width: 28px;
+  background: #ffd35c;
+}
+
+.floating-support {
+  position: fixed;
+  top: 50%;
+  right: 18px;
+  z-index: 48;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.floating-support > * {
+  pointer-events: auto;
+}
+
+.floating-support svg {
+  width: 24px;
+  height: 24px;
+}
+
+.floating-support__phone {
+  width: 78px;
+  height: 78px;
+  display: grid;
+  place-items: center;
+  border: 3px solid #f4cd55;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #83f3ed 0%, #16c8d7 70%);
+  color: #fff;
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, .92),
+    0 12px 30px rgba(15, 155, 180, .32);
+  cursor: pointer;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.floating-support__phone svg {
+  width: 39px;
+  height: 39px;
+  stroke-width: 2.2;
+}
+
+.floating-support__phone:hover,
+.floating-support__phone.active {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, .96),
+    0 15px 34px rgba(15, 155, 180, .4);
+}
+
+.floating-support__top {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  margin-right: 14px;
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ff8a13, #ff5f00);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(233, 99, 6, .28);
+  cursor: pointer;
+}
+
+.floating-support__promo {
+  position: relative;
+  width: 92px;
+  min-height: 82px;
+  margin-right: -4px;
+}
+
+.floating-support__promo a {
+  width: 92px;
+  height: 82px;
+  display: block;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(40, 93, 128, .23);
+}
+
+.floating-support__promo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.floating-support__promo-close {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  z-index: 2;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #8b9aa5;
+  color: #fff;
+  box-shadow: 0 5px 12px rgba(54, 75, 90, .28);
+  cursor: pointer;
+}
+
+.floating-support__promo-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.floating-support__online {
+  width: 58px;
+  min-height: 156px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border-radius: 13px 0 0 13px;
+  background: linear-gradient(180deg, #3994ff, #2474e9);
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(31, 111, 218, .3);
+  font-size: 16px;
+  font-weight: 900;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+.floating-support__online-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .18);
+}
+
+.floating-support__online-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.floating-support__contacts {
+  position: absolute;
+  top: 0;
+  right: 92px;
+  width: 310px;
+  overflow: hidden;
+  border: 1px solid rgba(178, 213, 234, .86);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 20px 54px rgba(29, 80, 114, .26);
+  backdrop-filter: blur(18px);
+}
+
+.floating-support__contacts-head {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 10px 16px;
+  border-bottom: 1px solid #e4f1f8;
+  color: #294861;
+}
+
+.floating-support__contacts-head button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: #edf6fb;
+  color: #71899a;
+  cursor: pointer;
+}
+
+.floating-support__contacts-head svg {
+  width: 17px;
+  height: 17px;
+}
+
+.floating-support__contact-list {
+  max-height: min(420px, 64vh);
+  overflow: auto;
+  padding: 8px;
+}
+
+.floating-support__contact {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 20px;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 13px;
+  color: #355066;
+}
+
+.floating-support__contact:hover,
+.floating-support__contact:focus-visible {
+  background: #edf8ff;
+}
+
+.floating-support__contact-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: #ddf5ff;
+  color: #248fc7;
+}
+
+.floating-support__contact--phone .floating-support__contact-icon {
+  background: #def8ef;
+  color: #0ca875;
+}
+
+.floating-support__contact--line .floating-support__contact-icon {
+  background: #e4f8dc;
+  color: #35a51a;
+}
+
+.floating-support__contact--telegram .floating-support__contact-icon {
+  background: #def3ff;
+  color: #248dc6;
+}
+
+.floating-support__contact strong,
+.floating-support__contact small {
+  display: block;
+}
+
+.floating-support__contact strong {
+  overflow: hidden;
+  color: #304c62;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.floating-support__contact small {
+  margin-top: 3px;
+  color: #8397a6;
+  font-size: 11px;
+}
+
+.floating-support__contact > svg {
+  width: 18px;
+  height: 18px;
+  color: #a1b4c0;
+}
+
+.floating-support [hidden] {
+  display: none !important;
+}
+
+@media (max-width: 900px) {
+  .home-carousel {
+    height: clamp(160px, 34vw, 230px);
+    min-height: 160px;
+  }
+}
+
+@media (max-width: 640px) {
+  .home-carousel {
+    height: 154px;
+    min-height: 154px;
+    margin-bottom: 12px;
+    border-radius: 16px;
+  }
+
+  .home-carousel__arrow {
+    width: 34px;
+    height: 34px;
+  }
+
+  .home-carousel__arrow.prev {
+    left: 8px;
+  }
+
+  .home-carousel__arrow.next {
+    right: 8px;
+  }
+
+  .home-carousel__dots {
+    bottom: 8px;
+  }
+
+  .floating-support {
+    top: auto;
+    right: 10px;
+    bottom: calc(76px + env(safe-area-inset-bottom));
+    gap: 8px;
+    transform: none;
+  }
+
+  .floating-support__phone {
+    width: 60px;
+    height: 60px;
+    border-width: 2px;
+  }
+
+  .floating-support__phone svg {
+    width: 30px;
+    height: 30px;
+  }
+
+  .floating-support__top {
+    width: 44px;
+    height: 44px;
+    margin-right: 8px;
+  }
+
+  .floating-support__promo {
+    width: 72px;
+    min-height: 64px;
+    margin-right: -2px;
+  }
+
+  .floating-support__promo a {
+    width: 72px;
+    height: 64px;
+    border-radius: 13px;
+  }
+
+  .floating-support__online {
+    width: 60px;
+    min-height: 52px;
+    display: grid;
+    place-items: center;
+    padding: 8px;
+    border-radius: 16px;
+    writing-mode: horizontal-tb;
+    font-size: 0;
+  }
+
+  .floating-support__online-icon {
+    width: 36px;
+    height: 36px;
+  }
+
+  .floating-support__contacts {
+    position: fixed;
+    top: auto;
+    right: 10px;
+    bottom: calc(146px + env(safe-area-inset-bottom));
+    width: min(340px, calc(100vw - 20px));
+  }
+
+  .floating-support__contact-list {
+    max-height: 44vh;
+  }
+}

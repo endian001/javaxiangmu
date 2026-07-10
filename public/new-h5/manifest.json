@@ -1,0 +1,10 @@
+{
+  "name": "TH2W Thailand",
+  "short_name": "TH2W",
+  "start_url": "/new-h5/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7fbff",
+  "theme_color": "#f7fbff",
+  "lang": "th"
+}
