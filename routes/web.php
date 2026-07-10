@@ -55,9 +55,11 @@ Route::domain(env('WAP_URL'))->group(function (){
     Route::any('/login','Wap\IndexController@login');
     Route::any('/register','Wap\IndexController@register');
     Route::get('/','Wap\IndexController@index');
+    Route::get('/activity','Wap\IndexController@promotionEntry');
+    Route::get('/activities','Wap\IndexController@promotionEntry');
+    Route::get('/promotions','Wap\IndexController@promotionEntry');
     Route::middleware(['auth'])->group(function () {
         Route::get('/logout','Wap\IndexController@logout');
-        Route::get('/activity','Wap\IndexController@activity');
         Route::any('/activityapply/{id}','Wap\IndexController@showactivity');
         Route::post('/doactivityapply','Wap\IndexController@doactivity');         
         Route::get('/center','Wap\IndexController@center');
@@ -114,7 +116,9 @@ Route::get('/joker','Web\IndexController@joker');
 Route::get('/gaming','Web\IndexController@gaming');
 Route::get('/lottery','Web\IndexController@lottery');
 Route::get('/concise','Web\IndexController@concise');
-Route::get('/activity','Web\IndexController@activity');
+Route::get('/activity','Web\IndexController@promotionEntry');
+Route::get('/activities','Web\IndexController@promotionEntry');
+Route::get('/promotions','Web\IndexController@promotionEntry');
 Route::get('/articles','Web\IndexController@articles');
 Route::get('/agent','Web\IndexController@agent');
 Route::get('/appindex','Web\IndexController@appindex');

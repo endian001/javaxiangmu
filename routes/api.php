@@ -16,6 +16,11 @@ use Illuminate\Http\Request;
 Route::post('/login','Api\AuthController@login');
 Route::post('/login_pc','Api\AuthController@login_pc');
 Route::post('/register','Api\AuthController@register');
+Route::get('/promotions/categories','Api\PromotionController@categories');
+Route::get('/promotions/popup','Api\PromotionController@popup');
+Route::post('/promotions/{id}/exposure','Api\PromotionController@recordExposure');
+Route::get('/promotions/{id}','Api\PromotionController@show');
+Route::get('/promotions','Api\PromotionController@index');
 Route::post('/activitytype','Api\IndexController@activityType'); //获得类型
 Route::post('/activitylist','Api\IndexController@activityList'); //活动列表
 Route::post('/activitydeatil','Api\IndexController@activitydeatil'); //活动详情

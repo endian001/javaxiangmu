@@ -282,6 +282,16 @@ class IndexController extends Controller
         }
         return view($this->path.'.activity',compact("activitytype","activitylist","id",'balancelist','lang'));
     }
+
+    public function promotionEntry(Request $request)
+    {
+        $path = public_path('index.html');
+        if (is_file($path)) {
+            return response()->file($path);
+        }
+
+        return $this->activity($request);
+    }
         public function articles(Request $request)
     {
         $lang = $this->showlang;

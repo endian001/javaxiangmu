@@ -69,6 +69,17 @@ class IndexController extends Controller
         $list = Activity::where('can_apply',1)->orderBy('id','desc')->get();
         return view($this->path.'.activity',compact('list'));
     }
+
+    public function promotionEntry()
+    {
+        $path = public_path('new-h5/index.html');
+        if (is_file($path)) {
+            return response()->file($path);
+        }
+
+        return $this->activity();
+    }
+
     public function showactivity($id)
     {
         $activity = Activity::where('id',$id)->first();
