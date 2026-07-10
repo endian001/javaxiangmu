@@ -211,6 +211,29 @@ class PlatformOperationsLegacyCrudTest extends TestCase
         $this->assertSame(1, $service->deleteLegacyRecord('20028', 'usdt_pay:'.$usdt['id']));
     }
 
+    public function test_payment_account_crud_uses_defaults_for_null_form_values()
+    {
+        $service = new PlatformOperationsService();
+
+        $code = $service->saveLegacyRecord('20028', [
+            'account_type' => 'code',
+            'pay_type_id' => null,
+            'category' => 'qr-null-defaults',
+            'mch_id' => 'M-NULL',
+            'download_name' => null,
+            'download_url' => null,
+            'min_price' => null,
+            'max_price' => null,
+            'status' => 'enabled',
+        ]);
+
+        $row = DB::table('code_pay')->where('id', $code['id'])->first();
+        $this->assertSame('', $row->download_name);
+        $this->assertSame('', $row->download_url);
+        $this->assertEquals(0.0, (float) $row->min_price);
+        $this->assertEquals(0.0, (float) $row->max_price);
+    }
+
     public function test_commission_help_and_bank_account_crud_use_real_tables()
     {
         $service = new PlatformOperationsService();

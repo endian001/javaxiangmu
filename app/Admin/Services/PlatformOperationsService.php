@@ -882,7 +882,7 @@ class PlatformOperationsService
 
     private function nullableValue(array $input, $key, $default = null)
     {
-        if (!array_key_exists($key, $input) || $input[$key] === '') {
+        if (!array_key_exists($key, $input) || $input[$key] === '' || $input[$key] === null) {
             return $default;
         }
 
