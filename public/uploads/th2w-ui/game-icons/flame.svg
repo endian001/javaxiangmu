@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Hot games">
+  <defs>
+    <linearGradient id="flameA" x1="34" y1="8" x2="88" y2="106" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffe88a"/>
+      <stop offset=".46" stop-color="#ff9f26"/>
+      <stop offset="1" stop-color="#e4323b"/>
+    </linearGradient>
+    <linearGradient id="flameB" x1="48" y1="48" x2="74" y2="101" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff7bd"/>
+      <stop offset="1" stop-color="#ffcf3d"/>
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="30" fill="#fff6dc"/>
+  <path fill="url(#flameA)" d="M62 111c-24 0-41-16-41-39 0-15 8-27 20-38 8-8 13-17 11-29 20 9 29 24 27 43 7-6 11-14 12-24 13 10 20 26 17 43-4 25-22 44-46 44Z"/>
+  <path fill="url(#flameB)" d="M62 104c-13 0-22-9-22-22 0-9 5-16 12-22 5-4 8-10 7-17 13 8 19 19 15 33 5-3 8-8 10-14 8 8 10 20 5 29-5 8-14 13-27 13Z"/>
+</svg>

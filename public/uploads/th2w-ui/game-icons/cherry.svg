@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Slot">
+  <rect width="120" height="120" rx="30" fill="#fff3f5"/>
+  <path d="M62 52c4-21 17-34 37-38" fill="none" stroke="#58a85d" stroke-width="8" stroke-linecap="round"/>
+  <path d="M61 51c-1-16-9-27-24-33" fill="none" stroke="#58a85d" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="43" cy="73" r="24" fill="#e8354f"/>
+  <circle cx="73" cy="77" r="25" fill="#c91038"/>
+  <circle cx="36" cy="64" r="7" fill="#ff9aad"/>
+  <circle cx="65" cy="67" r="7" fill="#ff7f98"/>
+  <path d="M78 28c15-11 30-6 31-5-7 14-22 20-37 13 1-3 3-6 6-8Z" fill="#55b96b"/>
+</svg>

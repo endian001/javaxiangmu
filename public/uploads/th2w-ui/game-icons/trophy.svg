@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Sport">
+  <rect width="120" height="120" rx="30" fill="#fff8dc"/>
+  <path d="M38 22h44v20c0 22-8 35-22 41-14-6-22-19-22-41V22Z" fill="#f2b927"/>
+  <path d="M38 33H20c1 23 12 35 27 38M82 33h18C99 56 88 68 73 71" fill="none" stroke="#d99518" stroke-width="9" stroke-linecap="round"/>
+  <path d="M60 82v16M43 101h34" fill="none" stroke="#bf7e12" stroke-width="10" stroke-linecap="round"/>
+  <path d="m60 35 6 12 13 2-10 9 3 14-12-7-12 7 3-14-10-9 13-2 6-12Z" fill="#fff3a3"/>
+</svg>

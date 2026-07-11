@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Poker">
+  <rect width="120" height="120" rx="30" fill="#eef5ff"/>
+  <path d="M60 16c20 18 37 33 37 52 0 14-10 24-24 24-8 0-14-4-18-10 0 12-4 20-12 24h34c-8-4-12-12-12-24-4 6-10 10-18 10-14 0-24-10-24-24 0-19 17-34 37-52Z" fill="#37415d"/>
+  <path d="M48 51c4-7 8-11 12-15 4 4 8 8 12 15" fill="none" stroke="#7c8cff" stroke-width="8" stroke-linecap="round"/>
+</svg>

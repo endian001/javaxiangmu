@@ -16,6 +16,7 @@
       return;
     }
 
+    initHeaderTools();
     initCarousel();
     initFloatingSupport();
   });
@@ -25,13 +26,18 @@
     return path === '/' || path === '/new-h5';
   }
 
-  function postJson(path, body) {
+  function postJson(path, body, extraHeaders) {
+    var headers = {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    };
+    Object.keys(extraHeaders || {}).forEach(function (key) {
+      headers[key] = extraHeaders[key];
+    });
+
     return fetch(path, {
       method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
+      headers: headers,
       body: JSON.stringify(body || {})
     }).then(function (response) {
       if (!response.ok) {
@@ -45,6 +51,58 @@
     return payload && Object.prototype.hasOwnProperty.call(payload, 'data')
       ? payload.data
       : payload;
+  }
+
+  function initHeaderTools() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-home-search-form]'), function (form) {
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var input = form.querySelector('[data-home-search-input]');
+        var keyword = input ? input.value.trim() : '';
+        if (!keyword && !form.classList.contains('top-search--open')) {
+          form.classList.add('top-search--open');
+          if (input) {
+            input.focus();
+          }
+          return;
+        }
+        location.href = keyword ? '/gaming?keyword=' + encodeURIComponent(keyword) : '/gaming';
+      });
+    });
+
+    var token = currentAuthToken();
+    Array.prototype.forEach.call(document.querySelectorAll('[data-guest-actions]'), function (node) {
+      node.hidden = !!token;
+    });
+    if (!token) {
+      return;
+    }
+
+    postJson('/api/user', {}, {
+      Authorization: 'Bearer ' + token
+    }).then(function (payload) {
+      var user = responseData(payload) || {};
+      renderMemberName(user.username || user.name || user.realname || 'Member');
+    }).catch(function () {
+      renderMemberName('Member');
+    });
+  }
+
+  function currentAuthToken() {
+    var keys = ['api_token', 'token', 'Authorization', 'userToken', 'member_token', 'th2w:api_token'];
+    for (var index = 0; index < keys.length; index += 1) {
+      var value = localStorage.getItem(keys[index]) || sessionStorage.getItem(keys[index]);
+      if (value) {
+        return String(value).replace(/^Bearer\s+/i, '').trim();
+      }
+    }
+    return '';
+  }
+
+  function renderMemberName(name) {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-member-name]'), function (node) {
+      node.textContent = name;
+    });
   }
 
   function initCarousel() {

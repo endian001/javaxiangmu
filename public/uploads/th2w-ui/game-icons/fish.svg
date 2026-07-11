@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Fishing game">
+  <rect width="120" height="120" rx="30" fill="#eaf8ff"/>
+  <path d="M18 66c18-26 53-31 78-8 5-6 10-11 18-15-1 15-5 25-14 32 5 7 8 15 9 26-8-4-15-9-21-16-26 19-57 13-70-19Z" fill="#30b8da"/>
+  <path d="M38 62c12-10 29-11 43-2-9 13-26 19-43 2Z" fill="#7fe5ff"/>
+  <circle cx="82" cy="56" r="5" fill="#1e5165"/>
+  <path d="M32 80c-7 5-15 8-25 8 5-9 12-16 21-20" fill="#f7cf52"/>
+</svg>
