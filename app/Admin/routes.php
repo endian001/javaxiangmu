@@ -13,6 +13,12 @@ Route::group([
 ], function (Router $router) {
 
 	$router->get('/', 'HomeController@index');
+	$router->get('/live-chats', 'LiveChatController@index');
+	$router->get('/live-chats/sessions', 'LiveChatController@sessions');
+	$router->get('/live-chats/{id}/messages', 'LiveChatController@messages');
+	$router->post('/live-chats/{id}/messages', 'LiveChatController@send');
+	$router->post('/live-chats/{id}/close', 'LiveChatController@close');
+	$router->post('/live-chats/{id}/reopen', 'LiveChatController@reopen');
 	$router->post('/tcg/12535/pixel-config', 'TcgShellController@savePixelConfig');
 	$router->post('/tcg/12535/pixel-data', 'TcgShellController@mutatePixelData');
 	$router->post('/tcg/12535/pixel-log', 'TcgShellController@appendPixelLog');

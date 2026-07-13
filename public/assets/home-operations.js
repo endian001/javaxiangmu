@@ -2232,12 +2232,11 @@
     var candidates = [
       payload.livechat_url,
       payload.realtime_url,
+      payload.internal_live_chat_url,
       payload.service_url,
       payload.kf_url,
       payload.url,
-      payload.service_link,
-      payload.fallback_url,
-      payload.work_order_page_url
+      payload.service_link
     ];
     if (Array.isArray(payload.services)) {
       payload.services.forEach(function (service) {
@@ -2246,14 +2245,27 @@
         }
       });
     }
-    candidates.push('/support/work-orders.html');
+    candidates.push('/support/live-chat.html');
     for (var i = 0; i < candidates.length; i += 1) {
       var url = safeContactUrl(candidates[i]);
-      if (url) {
+      if (url && !isWorkOrderContactUrl(url)) {
         return url;
       }
     }
     return '';
+  }
+
+  function isWorkOrderContactUrl(value) {
+    var raw = String(value || '').trim();
+    if (!raw) {
+      return false;
+    }
+    try {
+      var url = new URL(raw, location.origin);
+      return url.pathname.replace(/\/+$/, '') === '/support/work-orders.html';
+    } catch (error) {
+      return raw.split('?')[0].replace(/\/+$/, '') === '/support/work-orders.html';
+    }
   }
 
   function normalizeContact(item) {

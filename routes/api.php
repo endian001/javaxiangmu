@@ -25,6 +25,11 @@ Route::post('/activitytype','Api\IndexController@activityType'); //获得类型
 Route::post('/activitylist','Api\IndexController@activityList'); //活动列表
 Route::post('/activitydeatil','Api\IndexController@activitydeatil'); //活动详情
 Route::post('/getservicerurl','Api\IndexController@getServicerUrl'); //客户
+Route::match(['get', 'post'], '/live-chat/session','Api\IndexController@liveChatSession');
+Route::get('/live-chat/messages','Api\IndexController@liveChatMessages');
+Route::post('/live-chat/send','Api\IndexController@liveChatSend');
+Route::post('/live-chat/messages','Api\IndexController@liveChatSend');
+Route::post('/live-chat/close','Api\IndexController@liveChatClose');
 
 Route::post('/wxgame/verify','Api\IndexController@wxgameVerify');
 Route::post('/wxgame/balance','Api\IndexController@wxgameBalance');

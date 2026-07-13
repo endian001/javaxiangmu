@@ -187,6 +187,31 @@ class CustomerServicePayloadTest extends TestCase
         $this->assertStringEndsWith('/support/work-orders.html', $payload['fallback_url']);
     }
 
+    public function test_internal_live_chat_is_primary_realtime_support_even_when_work_orders_are_enabled()
+    {
+        DB::table('system_config')->insert([
+            [
+                'key' => 'service_type',
+                'value' => 'gongdan',
+            ],
+            [
+                'key' => 'internal_live_chat_enabled',
+                'value' => '1',
+            ],
+        ]);
+
+        $payload = $this->controller()->publicCustomerServicePayload();
+
+        $this->assertSame('realtime', $payload['mode']);
+        $this->assertTrue($payload['realtime_enabled']);
+        $this->assertSame('internal', $payload['realtime_provider']);
+        $this->assertTrue($payload['internal_live_chat_enabled']);
+        $this->assertStringEndsWith('/support/live-chat.html', $payload['url']);
+        $this->assertStringEndsWith('/support/live-chat.html', $payload['livechat_url']);
+        $this->assertStringEndsWith('/support/work-orders.html', $payload['fallback_url']);
+        $this->assertStringEndsWith('/support/work-orders.html', $payload['work_order_page_url']);
+    }
+
     public function test_payload_filters_placeholder_and_unsafe_third_party_customer_service_urls()
     {
         DB::table('platform_customer_services')->insert([
