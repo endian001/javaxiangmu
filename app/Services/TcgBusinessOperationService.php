@@ -109,6 +109,52 @@ class TcgBusinessOperationService
             ->update($updates) > 0;
     }
 
+    public function multiplierRuleFor($activityId, $amount = 0)
+    {
+        if (!Schema::hasTable('tcg_activity_multiplier_rules')) {
+            return null;
+        }
+
+        $amount = (float) $amount;
+
+        return DB::table('tcg_activity_multiplier_rules')
+            ->where('status', 'active')
+            ->where(function ($query) {
+                $query->whereNull('starts_at')
+                    ->orWhere('starts_at', '<=', $this->now());
+            })
+            ->where(function ($query) {
+                $query->whereNull('ends_at')
+                    ->orWhere('ends_at', '>=', $this->now());
+            })
+            ->where(function ($query) use ($activityId) {
+                $query->whereNull('activity_id')
+                    ->orWhere('activity_id', (int) $activityId);
+            })
+            ->where(function ($query) use ($amount) {
+                $query->whereNull('min_amount')
+                    ->orWhere('min_amount', '<=', $amount);
+            })
+            ->where(function ($query) use ($amount) {
+                $query->whereNull('max_amount')
+                    ->orWhere('max_amount', '>=', $amount);
+            })
+            ->orderByDesc('activity_id')
+            ->orderByDesc('multiplier')
+            ->orderByDesc('id')
+            ->first();
+    }
+
+    public function multiplierForApply($activityId, $amount = 0)
+    {
+        $rule = $this->multiplierRuleFor($activityId, $amount);
+        if (!$rule || !isset($rule->multiplier)) {
+            return 1.0;
+        }
+
+        return max(1.0, (float) $rule->multiplier);
+    }
+
     public function gameRestrictionHit($user, $platform, $gameType = '', $gameCode = '')
     {
         if (!Schema::hasTable('tcg_user_game_restrictions')) {

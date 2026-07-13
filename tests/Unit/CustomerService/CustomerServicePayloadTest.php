@@ -165,6 +165,28 @@ class CustomerServicePayloadTest extends TestCase
         $this->assertStringEndsWith('/support/work-orders.html', $payload['work_order_page_url']);
     }
 
+    public function test_work_order_page_is_not_reported_as_realtime_livechat()
+    {
+        DB::table('system_config')->insert([
+            [
+                'key' => 'service_type',
+                'value' => 'gongdan',
+            ],
+            [
+                'key' => 'platform_livechat_url',
+                'value' => 'https://wakuang.fakaw.eu.cc/support/work-orders.html',
+            ],
+        ]);
+
+        $payload = $this->controller()->publicCustomerServicePayload();
+
+        $this->assertSame('work_order', $payload['mode']);
+        $this->assertFalse($payload['realtime_enabled']);
+        $this->assertSame('', $payload['realtime_url']);
+        $this->assertStringEndsWith('/support/work-orders.html', $payload['url']);
+        $this->assertStringEndsWith('/support/work-orders.html', $payload['fallback_url']);
+    }
+
     public function test_payload_filters_placeholder_and_unsafe_third_party_customer_service_urls()
     {
         DB::table('platform_customer_services')->insert([

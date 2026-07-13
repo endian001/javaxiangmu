@@ -11,6 +11,9 @@
     touchStartX: 0
   };
 
+  var customerServicePayloadCache = null;
+  var customerServiceFetchPromise = null;
+
   var supportedLocales = [
     { code: 'zh-CN', label: '中文', native: '中文', flag: '🇨🇳' },
     { code: 'th-TH', label: 'ไทย', native: 'ไทย', flag: '🇹🇭' },
@@ -724,7 +727,7 @@
       '<a href="/member/recharge">充值</a>',
       '<a href="/member/withdraw">提现</a>',
       '<a href="/promotions">会员活动</a>',
-      '<a href="/support/work-orders.html">联系客服</a>',
+      '<a href="#" data-customer-service>联系客服</a>',
       '<button type="button" data-member-rebate>领取返水</button>',
       '</div>',
       renderMemberTimeline('正在加载真实记录...')
@@ -1787,7 +1790,7 @@
       '<a class="bn active" href="/new-h5/"><i>' + icon('home') + '</i>首页</a>',
       '<a class="bn" href="/activity"><i>' + icon('gift') + '</i>活动</a>',
       '<a class="bn" href="/gaming"><i>' + icon('gamepad') + '</i>游戏</a>',
-      '<a class="bn" href="/support/work-orders.html"><i>' + icon('headphones') + '</i>客服</a>',
+      '<a class="bn" href="#" data-customer-service><i>' + icon('headphones') + '</i>客服</a>',
       '<a class="bn" href="/member/center"><i>' + icon('user') + '</i>会员</a>'
     ].join('');
   }
@@ -2072,7 +2075,7 @@
   function initFloatingSupport() {
     var root = document.createElement('aside');
     root.className = 'floating-support';
-    root.innerHTML = ['<div class="floating-support__contacts" data-contact-panel hidden><div class="floating-support__contacts-head"><strong>联系方式</strong><button type="button" data-contact-close aria-label="关闭">' + icon('x') + '</button></div><div class="floating-support__contact-list" data-contact-list></div></div>', '<button class="floating-support__phone" type="button" data-contact-toggle aria-label="打开联系方式" aria-expanded="false">' + icon('phone-call') + '</button>', '<button class="floating-support__top" type="button" data-back-to-top aria-label="返回顶部" hidden>' + icon('chevrons-up') + '</button>', '<div class="floating-support__promo" data-floating-promo><button class="floating-support__promo-close" type="button" data-floating-promo-close aria-label="关闭活动">' + icon('x') + '</button><a href="/promotions" aria-label="查看活动"><img src="/assets/promotions/referral-banner.webp" alt="会员活动"></a></div>', '<a class="floating-support__online" data-online-service href="/support/work-orders.html" aria-label="联系客服"><span class="floating-support__online-icon">' + icon('headphones') + '</span><span>联系客服</span></a>'].join('');
+    root.innerHTML = ['<div class="floating-support__contacts" data-contact-panel hidden><div class="floating-support__contacts-head"><strong>联系方式</strong><button type="button" data-contact-close aria-label="关闭">' + icon('x') + '</button></div><div class="floating-support__contact-list" data-contact-list></div></div>', '<button class="floating-support__phone" type="button" data-contact-toggle aria-label="打开联系方式" aria-expanded="false">' + icon('phone-call') + '</button>', '<button class="floating-support__top" type="button" data-back-to-top aria-label="返回顶部" hidden>' + icon('chevrons-up') + '</button>', '<div class="floating-support__promo" data-floating-promo><button class="floating-support__promo-close" type="button" data-floating-promo-close aria-label="关闭活动">' + icon('x') + '</button><a href="/promotions" aria-label="查看活动"><img src="/assets/promotions/referral-banner.webp" alt="会员活动"></a></div>', '<a class="floating-support__online" data-online-service data-customer-service href="#" aria-label="联系客服"><span class="floating-support__online-icon">' + icon('headphones') + '</span><span>联系客服</span></a>'].join('');
     document.body.appendChild(root);
     var panel = root.querySelector('[data-contact-panel]');
     var toggle = root.querySelector('[data-contact-toggle]');
@@ -2089,10 +2092,11 @@
     topButton.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
     window.addEventListener('scroll', function () { topButton.hidden = window.scrollY < 320; }, { passive: true });
     if (promo) promo.querySelector('[data-floating-promo-close]').addEventListener('click', function () { localStorage.setItem(promoKey, '1'); promo.hidden = true; });
-    renderCustomerServices(root, { services: [], service_url: '/support/work-orders.html' });
-    postJson('/api/getservicerurl', {}, authHeaders(currentAuthToken()))
+    bindCustomerServiceTriggers();
+    renderCustomerServices(root, { services: [] }, { skipCache: true });
+    fetchCustomerServicePayload()
       .then(function (payload) {
-        renderCustomerServices(root, responseData(payload) || {});
+        renderCustomerServices(root, payload || {});
       })
       .catch(function () {});
   }
@@ -2103,15 +2107,19 @@
     toggle.classList.toggle('active', open);
   }
 
-  function renderCustomerServices(root, payload) {
+  function renderCustomerServices(root, payload, options) {
+    payload = payload || {};
+    options = options || {};
+    if (!options.skipCache) {
+      customerServicePayloadCache = payload;
+    }
+    root.__customerServicePayload = payload;
     var list = root.querySelector('[data-contact-list]');
     var toggle = root.querySelector('[data-contact-toggle]');
     var online = root.querySelector('[data-online-service]');
     var rows = Array.isArray(payload.services) ? payload.services : [];
     var contacts = rows.map(normalizeContact).filter(Boolean);
-    var onlineUrl = safeContactUrl(
-      payload.service_url || payload.work_order_page_url || '/support/work-orders.html'
-    );
+    var onlineUrl = resolveCustomerServiceUrl(payload);
 
     contacts = ensureDefaultContacts(contacts, onlineUrl);
 
@@ -2129,9 +2137,13 @@
 
     if (onlineUrl) {
       online.href = onlineUrl;
+      online.hidden = false;
       if (/^https?:/i.test(onlineUrl)) {
         online.target = '_blank';
         online.rel = 'noopener noreferrer';
+      } else {
+        online.removeAttribute('target');
+        online.removeAttribute('rel');
       }
     } else {
       online.hidden = true;
@@ -2140,7 +2152,7 @@
 
   function ensureDefaultContacts(contacts, onlineUrl) {
     var normalized = Array.isArray(contacts) ? contacts.slice() : [];
-    var fallbackUrl = onlineUrl || '/support/work-orders.html';
+    var fallbackUrl = onlineUrl || '';
     var defaults = [
       { type: 'online', label: '在线客服', url: fallbackUrl },
       { type: 'line', label: 'LINE 客服', url: fallbackUrl },
@@ -2152,6 +2164,96 @@
       if (!hasType && item.url) normalized.push(item);
     });
     return normalized;
+  }
+
+  function bindCustomerServiceTriggers() {
+    if (window.__th2wCustomerServiceTriggersBound) {
+      return;
+    }
+    window.__th2wCustomerServiceTriggersBound = true;
+    document.addEventListener('click', function (event) {
+      var trigger = closestCustomerServiceTrigger(event.target);
+      if (!trigger) {
+        return;
+      }
+      event.preventDefault();
+      fetchCustomerServicePayload()
+        .then(function (payload) { openCustomerService(payload); })
+        .catch(function () { openCustomerService(customerServicePayloadCache || {}); });
+    });
+  }
+
+  function closestCustomerServiceTrigger(node) {
+    while (node && node !== document) {
+      if (node.getAttribute && node.getAttribute('data-customer-service') !== null) {
+        return node;
+      }
+      node = node.parentNode;
+    }
+    return null;
+  }
+
+  function fetchCustomerServicePayload() {
+    if (customerServicePayloadCache && resolveCustomerServiceUrl(customerServicePayloadCache)) {
+      return Promise.resolve(customerServicePayloadCache);
+    }
+    if (!customerServiceFetchPromise) {
+      customerServiceFetchPromise = postJson('/api/getservicerurl', {}, authHeaders(currentAuthToken()))
+        .then(function (payload) {
+          customerServicePayloadCache = responseData(payload) || {};
+          return customerServicePayloadCache;
+        })
+        .catch(function (error) {
+          customerServiceFetchPromise = null;
+          throw error;
+        });
+    }
+    return customerServiceFetchPromise;
+  }
+
+  function openCustomerService(payload) {
+    var url = resolveCustomerServiceUrl(payload || customerServicePayloadCache || {});
+    if (!url) {
+      return false;
+    }
+    if (/^https?:/i.test(url)) {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } else {
+      window.location.href = url;
+    }
+    return true;
+  }
+
+  function resolveCustomerServiceUrl(payload) {
+    payload = payload || {};
+    if (payload.customer_service && typeof payload.customer_service === 'object') {
+      payload = Object.assign({}, payload, payload.customer_service);
+    }
+    var candidates = [
+      payload.livechat_url,
+      payload.realtime_url,
+      payload.service_url,
+      payload.kf_url,
+      payload.url,
+      payload.service_link,
+      payload.fallback_url,
+      payload.work_order_page_url
+    ];
+    if (Array.isArray(payload.services)) {
+      payload.services.forEach(function (service) {
+        if (service && typeof service === 'object') {
+          candidates.push(service.url || service.link || service.service_url);
+        }
+      });
+    }
+    candidates.push('/support/work-orders.html');
+    for (var i = 0; i < candidates.length; i += 1) {
+      var url = safeContactUrl(candidates[i]);
+      if (url) {
+        return url;
+      }
+    }
+    return '';
   }
 
   function normalizeContact(item) {

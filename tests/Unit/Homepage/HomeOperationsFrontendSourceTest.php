@@ -27,11 +27,11 @@ class HomeOperationsFrontendSourceTest extends TestCase
                 $file.' should expose a home banner hook'
             );
             $this->assertStringContainsString(
-                '/assets/home-operations.css?v=20260713ops4',
+                '/assets/home-operations.css?v=20260713ops5',
                 $source
             );
             $this->assertStringContainsString(
-                '/assets/home-operations.js?v=20260713ops4',
+                '/assets/home-operations.js?v=20260713ops5',
                 $source
             );
         }
@@ -83,6 +83,10 @@ class HomeOperationsFrontendSourceTest extends TestCase
         $this->assertStringContainsString('function resolveCustomerServiceUrl(', $script);
         $this->assertStringContainsString('fallback_url', $script);
         $this->assertStringContainsString('/api/getservicerurl', $script);
+        $this->assertStringContainsString('skipCache', $script);
+        $this->assertStringContainsString('customerServicePayloadCache && resolveCustomerServiceUrl(customerServicePayloadCache)', $script);
+        $this->assertStringContainsString('online.hidden = false', $script);
+        $this->assertStringContainsString("candidates.push('/support/work-orders.html')", $script);
         $this->assertStringNotContainsString(
             'data-online-service href="/support/work-orders.html"',
             $script,
@@ -109,6 +113,14 @@ class HomeOperationsFrontendSourceTest extends TestCase
             strpos($source, '/api/getservicerurl') !== false,
             'The mobile bottom customer-service tab should use the shared customer-service flow or fetch /api/getservicerurl.'
         );
+    }
+
+    public function test_work_order_page_uses_shared_login_route()
+    {
+        $source = file_get_contents($this->root().'/public/support/work-orders.html');
+
+        $this->assertStringContainsString("location.href='/login?redirect='", $source);
+        $this->assertStringNotContainsString('/new-h5/#/login', $source);
     }
 
     public function test_home_operations_does_not_strip_thai_text()

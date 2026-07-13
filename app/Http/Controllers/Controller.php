@@ -176,7 +176,7 @@ class Controller extends BaseController
 
         foreach ($candidates as $candidate) {
             $candidate = trim((string) $candidate);
-            if ($this->isUsableCustomerServiceUrl($candidate)) {
+            if (!$this->isWorkOrderServiceUrl($candidate) && $this->isUsableCustomerServiceUrl($candidate)) {
                 return $candidate;
             }
         }
@@ -195,12 +195,19 @@ class Controller extends BaseController
 
         foreach ($candidates as $candidate) {
             $candidate = trim((string) $candidate);
-            if ($this->isUsableCustomerServiceUrl($candidate)) {
+            if (!$this->isWorkOrderServiceUrl($candidate) && $this->isUsableCustomerServiceUrl($candidate)) {
                 return $candidate;
             }
         }
 
         return '';
+    }
+
+    protected function isWorkOrderServiceUrl($url)
+    {
+        $path = strtolower((string) parse_url(trim((string) $url), PHP_URL_PATH));
+
+        return $path === '/support/work-orders.html';
     }
 
     protected function isUsableCustomerServiceUrl($url)

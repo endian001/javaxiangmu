@@ -960,6 +960,10 @@ class PayController extends Controller
 
     protected function safeAccountToGameTransfer(User $user, $platform, $amount, TgService $tg)
     {
+        if ($limit = $this->amountExceedsPlayerLimit($user, $amount, $platform)) {
+            return $this->returnMsg(209, [], $this->tcgRestrictionMessage($limit, 'transfer amount exceeds player limit'));
+        }
+
         $reserved = DB::transaction(function () use ($user, $platform, $amount) {
             $active = $this->activePendingTransfer($user->id, $platform, 0);
             if ($active) {

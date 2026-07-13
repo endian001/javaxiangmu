@@ -2380,6 +2380,13 @@ class IndexController extends Controller
         $stream_config_url = $servicePayload['stream_config_url'];
         $stream_token_url = $servicePayload['stream_token_url'];
         $stream_channel_url = $servicePayload['stream_channel_url'];
+        $mode = $servicePayload['mode'];
+        $realtime_enabled = $servicePayload['realtime_enabled'];
+        $realtime_url = $servicePayload['realtime_url'];
+        $livechat_url = $servicePayload['livechat_url'];
+        $fallback_url = $servicePayload['fallback_url'];
+        $services = $servicePayload['services'];
+        $customer_service = $servicePayload;
         $title = SystemConfig::getValue('site_title') ?? 'TH2.VIP';
         $redpacket_switch = SystemConfig::getValue('redpacket');
         $site_state = SystemConfig::getValue('site_state');
@@ -2394,7 +2401,7 @@ class IndexController extends Controller
         $download_bar_icon = $this->uploadUrl(SystemConfig::getValue('download_bar_icon')) ?: $app_logo ?: $site_logo;
         $login_bonus_img = $this->uploadUrl(SystemConfig::getValue('login_bonus_img'));
         $vip_rule_title_img = $this->uploadUrl(SystemConfig::getValue('vip_rule_title_img'));
-        return $this->returnMsg(200,compact('ios_download_qrcode','ios_download_url','h5_url','wap_url','pc_url','app_url','agent_login_url','official_domain','navigation_domains','asset_domain','sponsor_page_url_1','sponsor_page_url_2','agent_url','url','kf_url','service_url','service_link','customer_service_url','online_service_url','service_type','customer_service_configured','link_configured','work_order_enabled','work_order_page_url','work_order_list_url','work_order_create_url','work_order_detail_url','work_order_reply_url','work_order_close_url','ws_enabled','stream_chat','stream_config_url','stream_token_url','stream_channel_url','title','redpacket_switch','site_state','fanshui','index_modal','repair_tips','webcontent','site_logo','app_logo','download_bar_icon','login_bonus_img','vip_rule_title_img'));
+        return $this->returnMsg(200,compact('ios_download_qrcode','ios_download_url','h5_url','wap_url','pc_url','app_url','agent_login_url','official_domain','navigation_domains','asset_domain','sponsor_page_url_1','sponsor_page_url_2','agent_url','url','kf_url','service_url','service_link','customer_service_url','online_service_url','service_type','customer_service_configured','link_configured','work_order_enabled','work_order_page_url','work_order_list_url','work_order_create_url','work_order_detail_url','work_order_reply_url','work_order_close_url','ws_enabled','stream_chat','stream_config_url','stream_token_url','stream_channel_url','mode','realtime_enabled','realtime_url','livechat_url','fallback_url','services','customer_service','title','redpacket_switch','site_state','fanshui','index_modal','repair_tips','webcontent','site_logo','app_logo','download_bar_icon','login_bonus_img','vip_rule_title_img'));
     }
 
 
