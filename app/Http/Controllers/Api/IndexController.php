@@ -2769,8 +2769,8 @@ class IndexController extends Controller
      */
     public function getAgentInfo(Request $request)
     {
-        $token = $request->header('authorization');
-        $token = str_replace('Bearer ','',$token);
+        $token = $request->header('Authorization', $request->header('authorization', ''));
+        $token = trim(preg_replace('/^Bearer\s+/i', '', (string) $token));
         $user = User::where('api_token',$token)->first();
         if (!$user) {
             return $this->returnMsg(401, '', 'Authentication required');
@@ -2779,7 +2779,7 @@ class IndexController extends Controller
         $pcUrl = $this->invitePublicUrl(SystemConfig::getValue('agent_pc_uri') ?: env('PC_URL'), $user->id);
         $wapUrl = $this->invitePublicUrl(SystemConfig::getValue('agent_wap_uri') ?: env('WAP_URL'), $user->id);
 
-        // 閻㈢喐鍨氭禍宀€娣惍浣界熅瀵?        $qrcodePath = '/uploads/agent/qrcode/' . $user->id . '.png';
+        $qrcodePath = '/uploads/agent/qrcode/' . $user->id . '.png';
 
         return $this->returnMsg(200, [
             'pc_url' => $pcUrl,

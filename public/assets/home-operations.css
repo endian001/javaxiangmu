@@ -2073,6 +2073,76 @@ main.auth-shell {
   line-height: 1.55;
 }
 
+.member-agent-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.member-agent-hero .member-action-row {
+  margin-top: 16px;
+}
+
+.member-agent-section {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(168, 210, 235, .65);
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fff, #f7fcff);
+  box-shadow: 0 10px 22px rgba(64, 119, 153, .1);
+}
+
+.member-agent-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.member-agent-section__head strong {
+  color: #263a50;
+  font-size: 18px;
+}
+
+.member-agent-section__head small {
+  color: #d18a13;
+  font-weight: 900;
+}
+
+.member-agent-table {
+  display: grid;
+  gap: 10px;
+}
+
+.member-agent-table > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(90px, .7fr) minmax(120px, .8fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 50px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eef8ff;
+  color: #39556d;
+  font-weight: 900;
+}
+
+.member-agent-table strong,
+.member-agent-table span,
+.member-agent-table small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.member-agent-table strong {
+  color: #263a50;
+}
+
+.member-agent-table small {
+  color: #6a8194;
+}
+
 .member-form-card {
   display: grid;
   gap: 14px;

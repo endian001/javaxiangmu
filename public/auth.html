@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <meta name="theme-color" content="#f7fbff">
+  <title>登录 / 注册 - TH2W</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:Inter,Poppins,Arial,Tahoma,sans-serif;background:linear-gradient(135deg,#e8f7ff,#fff 52%,#ffe9ad);color:#14324a}a{text-decoration:none;color:inherit}.top{height:68px;background:#fff;border-bottom:1px solid #dceaf2;display:flex;align-items:center;justify-content:center}.top-inner{width:min(1120px,100%);padding:0 18px;display:flex;align-items:center;justify-content:space-between;gap:18px}.brand{font-weight:900;font-size:26px;color:#0b6cae}.nav{display:flex;gap:8px;flex-wrap:wrap}.nav a{color:#25475e;font-weight:800;padding:8px 12px;border-radius:999px}.nav a:hover{background:#e8f4fb}.wrap{width:min(1100px,100%);margin:0 auto;padding:42px 18px;display:grid;grid-template-columns:1.05fr .95fr;gap:26px;align-items:center}.hero{padding:24px}.hero small{display:inline-flex;background:#fff;border:1px solid #bfdfef;border-radius:999px;padding:8px 13px;font-weight:900;color:#0b6cae}.hero h1{font-size:52px;line-height:1.05;margin:22px 0 12px;color:#0d4f82}.hero p{font-size:18px;line-height:1.65;color:#496a7f;margin:0 0 22px}.chips{display:flex;gap:10px;flex-wrap:wrap}.chip{background:#fff;border:1px solid #dceaf2;border-radius:14px;padding:12px 14px;font-weight:900;box-shadow:0 8px 22px rgba(20,50,74,.08)}.panel{background:#fff;border:1px solid #dceaf2;border-radius:24px;box-shadow:0 24px 60px rgba(20,50,74,.14);padding:28px}.tabs{display:grid;grid-template-columns:1fr 1fr;background:#eef7fc;border-radius:16px;padding:5px;margin-bottom:22px}.tab{border:0;background:transparent;border-radius:12px;padding:12px;font-weight:900;color:#597589;cursor:pointer}.tab.active{background:#0b6cae;color:#fff}.form{display:none}.form.active{display:block}.field{display:block;margin:14px 0}.field span{display:block;font-weight:900;margin-bottom:8px;color:#24465d}.field input{width:100%;height:46px;border:1px solid #cfe1eb;border-radius:12px;padding:0 13px;font-size:15px;outline:none}.field input:focus{border-color:#0b6cae;box-shadow:0 0 0 3px rgba(11,108,174,.12)}.btn{width:100%;height:48px;border:0;border-radius:999px;background:#f6c453;color:#3f2700;font-weight:900;font-size:16px;cursor:pointer;margin-top:14px}.btn:disabled{opacity:.65;cursor:wait}.msg{min-height:22px;margin:12px 0 0;font-weight:900;color:#c0392b}.msg.ok{color:#128a4a}.links{display:flex;justify-content:space-between;gap:10px;margin-top:16px}.links a{color:#0b6cae;font-weight:900}@media(max-width:760px){.top{height:auto}.top-inner{padding:14px;align-items:flex-start;flex-direction:column}.wrap{grid-template-columns:1fr;padding-top:22px}.hero{padding:4px}.hero h1{font-size:36px}.panel{padding:22px}.nav a{font-size:14px;padding:7px 9px}}
+  </style>
+</head>
+<body>
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/">TH2.VIP</a>
+      <nav class="nav">
+        <a href="/">首页</a>
+        <a href="/joker">老虎机</a>
+        <a href="/gaming">游戏</a>
+        <a href="/realbet">真人</a>
+        <a href="/sport">体育</a>
+        <a href="/activity">活动</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wrap">
+    <section class="hero">
+      <small>TH2.VIP Member</small>
+      <h1>登录 / 注册</h1>
+      <p>登录后可使用会员中心、钱包、充值、提现、活动和代理功能。</p>
+      <div class="chips"><span class="chip">安全登录</span><span class="chip">会员钱包</span><span class="chip">活动权益</span></div>
+    </section>
+    <section class="panel">
+      <div class="tabs"><button class="tab" data-tab="login" type="button">登录</button><button class="tab" data-tab="register" type="button">注册</button></div>
+      <form class="form" id="loginForm" autocomplete="on">
+        <label class="field"><span>用户名</span><input name="name" autocomplete="username" required></label>
+        <label class="field"><span>密码</span><input name="password" type="password" autocomplete="current-password" required></label>
+        <button class="btn" type="submit">登录</button><p class="msg" id="loginMsg"></p>
+      </form>
+      <form class="form" id="registerForm" autocomplete="on">
+        <label class="field"><span>用户名</span><input name="name" autocomplete="username" required minlength="4"></label>
+        <label class="field"><span>真实姓名</span><input name="realname" autocomplete="name" required></label>
+        <label class="field"><span>密码</span><input name="password" type="password" autocomplete="new-password" required minlength="6"></label>
+        <label class="field"><span>确认密码</span><input name="password_confirmation" type="password" autocomplete="new-password" required minlength="6"></label>
+        <label class="field"><span>取款密码</span><input name="qukuanmima" type="password" inputmode="numeric" value="258963" required minlength="6"></label>
+        <button class="btn" type="submit">注册</button><p class="msg" id="registerMsg"></p>
+      </form>
+      <div class="links"><a href="/">返回首页</a><a href="/member/center">会员中心</a></div>
+    </section>
+  </main>
+  <script>
+    (function(){
+      var mode = location.pathname.indexOf('register') >= 0 ? 'register' : 'login';
+      var params = new URLSearchParams(location.search || '');
+      var requestedRedirect = safeRedirect(params.get('redirect'));
+      var redirect = requestedRedirect || '/member/center';
+      function setMode(next){ mode = next; document.querySelectorAll('.tab').forEach(function(b){b.classList.toggle('active', b.dataset.tab === mode)}); document.getElementById('loginForm').classList.toggle('active', mode==='login'); document.getElementById('registerForm').classList.toggle('active', mode==='register'); history.replaceState(null,'','/'+mode+'?redirect='+encodeURIComponent(redirect)); }
+      document.querySelectorAll('.tab').forEach(function(b){ b.addEventListener('click', function(){setMode(b.dataset.tab)}); });
+      setMode(mode);
+      function encode(data){ return Object.keys(data).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(data[k]||'')}).join('&'); }
+      function csrfToken(){
+        var match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+      }
+      function safeRedirect(value){
+        var raw = String(value || '').trim();
+        if (!raw || raw.charAt(0) !== '/' || raw.indexOf('//') === 0 || raw.indexOf('\\\\') === 0) return '';
+        return raw;
+      }
+      function responseData(payload){
+        return payload && Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data : payload;
+      }
+      function extractAuthToken(payload){
+        var data = responseData(payload) || {};
+        return data.api_token || data.token || data.access_token || data.new_api_token || payload.api_token || payload.token || '';
+      }
+      function storeAuthToken(token){
+        token = String(token || '').replace(/^Bearer\s+/i, '').trim();
+        if (!token) return false;
+        localStorage.setItem('api_token', token);
+        localStorage.setItem('th2w:api_token', token);
+        localStorage.setItem('token', token);
+        return true;
+      }
+      function isAgentPayload(payload){
+        var data = responseData(payload) || {};
+        var value = Object.prototype.hasOwnProperty.call(data, 'isagent') ? data.isagent : data.is_agent;
+        return value === true || String(value) === '1';
+      }
+      function successRedirect(payload){
+        if ((!requestedRedirect || requestedRedirect === '/' || requestedRedirect === '/index.html') && isAgentPayload(payload)) return '/member/agent';
+        return redirect;
+      }
+      function post(url, form, msg){
+        var btn = form.querySelector('button[type=submit]');
+        btn.disabled = true; msg.className='msg'; msg.textContent='正在提交...';
+        var data = {}; new FormData(form).forEach(function(value, key){ data[key] = value; });
+        var headers = {'Content-Type':'application/x-www-form-urlencoded','X-Requested-With':'XMLHttpRequest'};
+        var xsrf = csrfToken();
+        if (xsrf) headers['X-XSRF-TOKEN'] = xsrf;
+        fetch(url,{method:'POST',headers:headers,credentials:'same-origin',body:encode(data)})
+          .then(function(r){return r.text().then(function(t){try{return {ok:r.ok,json:JSON.parse(t),text:t,status:r.status}}catch(e){return {ok:r.ok,text:t,status:r.status}}})})
+          .then(function(res){ var code = res.json && String(res.json.code || res.json.status || ''); if(code==='200' || res.status===200 && /"code"\s*:\s*200/.test(res.text||'')){ storeAuthToken(extractAuthToken(res.json || {})); msg.className='msg ok'; msg.textContent='成功，正在进入会员中心'; setTimeout(function(){location.href=successRedirect(res.json || {})},500); } else { msg.textContent=(res.json && (res.json.msg || res.json.message)) || ('提交失败：'+res.status); } })
+          .catch(function(e){ msg.textContent='网络异常：'+e.message; })
+          .finally(function(){ btn.disabled = false; });
+      }
+      document.getElementById('loginForm').addEventListener('submit', function(e){e.preventDefault(); post('/loginDo', e.currentTarget, document.getElementById('loginMsg'));});
+      document.getElementById('registerForm').addEventListener('submit', function(e){e.preventDefault(); var f=e.currentTarget; if(f.password.value!==f.password_confirmation.value){document.getElementById('registerMsg').textContent='两次密码不一致';return;} post('/registerDo', f, document.getElementById('registerMsg'));});
+    }());
+  </script>
+</body>
+</html>
