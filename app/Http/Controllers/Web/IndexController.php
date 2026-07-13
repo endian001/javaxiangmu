@@ -31,14 +31,19 @@ class IndexController extends Controller
         
 
         
-        $site_state = SystemConfig::query()->find("site_state");
-        if(!$site_state['value']){
-            echo SystemConfig::query()->find("repair_tips")['value'];
+        try {
+            $site_state = SystemConfig::getValue('site_state');
+        } catch (\Throwable $e) {
+            $site_state = '1';
+        }
+        if($site_state !== '' && (string) $site_state === '0'){
+            echo SystemConfig::getValue('repair_tips');
             exit;
         }
 
         $data = $request->all();
         $lang = isset($data['lang']) ? $data['lang'] : "";
+        $path = 'web';
         if($lang==""){
             $cookielang = Cookie::get("userlang");
             $this->showlang = $cookielang;
@@ -67,12 +72,13 @@ class IndexController extends Controller
 
     public function index(Request $request)
     {
-        $url = env("PC_URL");
+        $url = env("PC_URL") ?: config('app.url');
         if($this->isMobile()){
-            $url = env("WAP_URL");
+            $url = env("WAP_URL") ?: $url;
         }  
-		return redirect()->away($url);
-		exit;         
+        if($url){
+            return redirect()->away($url);
+        }
         if($this->isMobile()){
             $wapurl = env("WAP_URL").":".$_SERVER["SERVER_PORT"];
             return redirect()->away($wapurl);

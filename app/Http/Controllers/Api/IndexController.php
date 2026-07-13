@@ -830,7 +830,9 @@ class IndexController extends Controller
         }
         $list = $query->orderBy('id', 'asc')->get();
         foreach ($list as $item) {
-            $item->name = $item->name ?? '';
+            $adminName = (string) ($item->name ?? '');
+            $item->name = $this->activityTypePublicName($item);
+            $item->admin_name = $adminName;
             $item->enname = $item->enname ?? '';
             $item->icon = isset($item->icon) ? $this->formatUploadUrl($item->icon) : '';
         }
@@ -2183,7 +2185,7 @@ class IndexController extends Controller
         $detailImage = $channel === 'mobile'
             ? (($activity->app_detail_image ?? '') ?: ($activity->detail_image ?? '') ?: $banner)
             : (($activity->detail_image ?? '') ?: ($activity->app_detail_image ?? '') ?: $banner);
-        $typeName = $activity->type_data ? (string) ($activity->type_data->name ?? '') : '';
+        $typeName = $this->activityTypePublicName($activity->type_data);
         $title = $this->promotionDisplayText($activity->entitle ?? '', $activity->title ?? '');
         $content = $this->promotionDisplayText($activity->encontent ?? '', $activity->content ?? '');
         $memo = $this->promotionDisplayText($activity->enmemo ?? '', $activity->memo ?? '');
@@ -2302,6 +2304,15 @@ class IndexController extends Controller
         }
 
         return trim((string) $fallback);
+    }
+
+    private function activityTypePublicName($type)
+    {
+        if (!$type) {
+            return '';
+        }
+
+        return $this->promotionDisplayText($type->enname ?? '', $type->name ?? '');
     }
 
     private function formatUploadUrl($path)

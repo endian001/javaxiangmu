@@ -84,4 +84,57 @@ class PromotionMigrationSourceTest extends TestCase
         $this->assertStringContainsString("'requires_auth' => 0", $source);
         $this->assertStringContainsString("'is_popup' => 0", $source);
     }
+
+    public function test_activity_admin_localization_migration_separates_admin_and_public_copy()
+    {
+        $path = $this->root().'/database/migrations/2026_07_13_000009_localize_activity_admin_content.php';
+        $this->assertFileExists($path);
+        $source = file_get_contents($path);
+
+        foreach ([
+            "Schema::hasColumn('activity_types', 'enname')",
+            "'name' => '新会员'",
+            "'enname' => 'สมาชิกใหม่'",
+            "'title' => '新会员最高 1,888 奖金'",
+            "'entitle' => 'ต้อนรับสมาชิกใหม่ โบนัสสูงสุด 1,888'",
+            "'title' => '邀请好友最高 28,888 奖金'",
+            "'entitle' => 'ชวนเพื่อน รับโบนัสสูงสุด 28,888'",
+        ] as $marker) {
+            $this->assertStringContainsString($marker, $source);
+        }
+    }
+
+    public function test_referral_migrations_keep_the_frontend_action_hardened()
+    {
+        foreach ([
+            '/database/migrations/2026_07_11_000004_add_referral_activity.php',
+            '/database/migrations/2026_07_11_000006_clean_activity_promotions_final.php',
+            '/database/migrations/2026_07_13_000009_localize_activity_admin_content.php',
+            '/database/migrations/2026_07_13_000010_harden_localized_referral_action.php',
+        ] as $path) {
+            $source = file_get_contents($this->root().$path);
+            $this->assertStringContainsString("'action_url' => ''", $source);
+            $this->assertStringContainsString("'requires_auth' => 0", $source);
+        }
+    }
+
+    public function test_late_legacy_activity_type_names_are_localized_for_admin()
+    {
+        $path = $this->root().'/database/migrations/2026_07_13_000011_localize_legacy_activity_type_names.php';
+        $this->assertFileExists($path);
+        $source = file_get_contents($path);
+
+        foreach ([
+            "'name' => '每日福利'",
+            "'enname' => 'สวัสดิการรายวัน'",
+            "'name' => '下载APP'",
+            "'enname' => 'ดาวน์โหลดแอป'",
+            "'name' => '电子老虎机'",
+            "'enname' => 'สล็อต'",
+            "'name' => '其他'",
+            "'enname' => 'อื่นๆ'",
+        ] as $marker) {
+            $this->assertStringContainsString($marker, $source);
+        }
+    }
 }

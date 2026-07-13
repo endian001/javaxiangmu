@@ -96,9 +96,9 @@ class CleanActivityPromotionsFinal extends Migration
                 'is_popup' => 0,
                 'popup_frequency' => 'once',
                 'popup_delay_seconds' => 0,
-                'action_url' => '/member/center',
+                'action_url' => '',
                 'button_text' => 'ดูรายละเอียด',
-                'requires_auth' => 1,
+                'requires_auth' => 0,
                 'updated_at' => $now,
             ];
 

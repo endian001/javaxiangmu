@@ -854,7 +854,7 @@ class AppController extends Controller
         $title = $this->promotionDisplayText($activity->entitle ?? '', $activity->title ?? '');
         $content = $this->promotionDisplayText($activity->encontent ?? '', $activity->content ?? '');
         $memo = $this->promotionDisplayText($activity->enmemo ?? '', $activity->memo ?? '');
-        $typeName = $activity->type_data ? (string)($activity->type_data->name ?? '') : '';
+        $typeName = $this->activityTypePublicName($activity->type_data);
 
         return [
             'id' => (int)($activity->id ?? 0),
@@ -930,6 +930,15 @@ class AppController extends Controller
         }
 
         return trim((string)$fallback);
+    }
+
+    private function activityTypePublicName($type)
+    {
+        if (!$type) {
+            return '';
+        }
+
+        return $this->promotionDisplayText($type->enname ?? '', $type->name ?? '');
     }
 
     private function formatAppUploadUrl($path)
