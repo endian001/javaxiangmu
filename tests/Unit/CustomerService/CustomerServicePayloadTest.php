@@ -127,12 +127,177 @@ class CustomerServicePayloadTest extends TestCase
         );
     }
 
+    public function test_payload_declares_realtime_mode_and_keeps_work_orders_as_fallback()
+    {
+        DB::table('system_config')->insert([
+            [
+                'key' => 'service_type',
+                'value' => 'gongdan',
+            ],
+            [
+                'key' => 'platform_livechat_url',
+                'value' => 'https://chat.th2w-support.com/customer',
+            ],
+            [
+                'key' => 'stream_chat_enabled',
+                'value' => '1',
+            ],
+            [
+                'key' => 'stream_chat_api_key',
+                'value' => 'stream-ready-key',
+            ],
+            [
+                'key' => 'stream_chat_secret',
+                'value' => 'stream-ready-secret',
+            ],
+        ]);
+
+        $payload = $this->controller()->publicCustomerServicePayload();
+
+        $this->assertArrayHasKey('mode', $payload);
+        $this->assertArrayHasKey('realtime_enabled', $payload);
+        $this->assertArrayHasKey('fallback_url', $payload);
+        $this->assertSame('realtime', $payload['mode']);
+        $this->assertTrue($payload['realtime_enabled']);
+        $this->assertStringEndsWith('/support/work-orders.html', $payload['fallback_url']);
+        $this->assertSame('https://chat.th2w-support.com/customer', $payload['url']);
+        $this->assertSame('https://chat.th2w-support.com/customer', $payload['service_url']);
+        $this->assertStringEndsWith('/support/work-orders.html', $payload['work_order_page_url']);
+    }
+
+    public function test_payload_filters_placeholder_and_unsafe_third_party_customer_service_urls()
+    {
+        DB::table('platform_customer_services')->insert([
+            [
+                'service_type' => 'custom',
+                'display_name' => 'Script',
+                'service_url' => 'javascript:alert(1)',
+                'position' => 1,
+                'min_player_level' => 0,
+                'status' => 1,
+            ],
+            [
+                'service_type' => 'custom',
+                'display_name' => 'Example',
+                'service_url' => 'https://example.com/support',
+                'position' => 2,
+                'min_player_level' => 0,
+                'status' => 1,
+            ],
+            [
+                'service_type' => 'custom',
+                'display_name' => 'Example Subdomain',
+                'service_url' => 'https://support.example.org/live',
+                'position' => 3,
+                'min_player_level' => 0,
+                'status' => 1,
+            ],
+            [
+                'service_type' => 'custom',
+                'display_name' => 'Baidu',
+                'service_url' => 'https://www.baidu.com/customer',
+                'position' => 4,
+                'min_player_level' => 0,
+                'status' => 1,
+            ],
+            [
+                'service_type' => 'custom',
+                'display_name' => 'Baidu Subdomain',
+                'service_url' => 'https://chat.baidu.com/customer',
+                'position' => 5,
+                'min_player_level' => 0,
+                'status' => 1,
+            ],
+            [
+                'service_type' => 'custom',
+                'display_name' => 'Localhost',
+                'service_url' => 'http://localhost/customer',
+                'position' => 6,
+                'min_player_level' => 0,
+                'status' => 1,
+            ],
+            [
+                'service_type' => 'line',
+                'display_name' => 'Real Line',
+                'service_url' => 'https://line.me/R/ti/p/@th2w-real',
+                'position' => 7,
+                'min_player_level' => 0,
+                'status' => 1,
+            ],
+        ]);
+
+        DB::table('system_config')->insert([
+            [
+                'key' => 'kf_url',
+                'value' => 'https://example.net/customer',
+            ],
+            [
+                'key' => 'online_service_url',
+                'value' => 'http://127.0.0.1/customer',
+            ],
+        ]);
+
+        $payload = $this->controller()->publicCustomerServicePayload();
+        $urls = array_column($payload['services'], 'service_url');
+
+        $this->assertSame(['https://line.me/R/ti/p/@th2w-real'], $urls);
+        $this->assertSame('', $payload['url']);
+        $this->assertSame('', $payload['service_url']);
+        foreach (['javascript:', 'example.', 'baidu.com', 'localhost', '127.0.0.1'] as $blocked) {
+            $this->assertStringNotContainsString($blocked, implode(' ', $urls).' '.$payload['url']);
+        }
+    }
+
+    public function test_payload_filters_entries_by_player_level()
+    {
+        DB::table('platform_customer_services')->insert([
+            [
+                'service_type' => 'line',
+                'display_name' => 'Public Line',
+                'service_url' => 'https://line.me/R/ti/p/@public',
+                'position' => 10,
+                'min_player_level' => 0,
+                'status' => 1,
+            ],
+            [
+                'service_type' => 'telegram',
+                'display_name' => 'VIP Telegram',
+                'service_url' => 'https://t.me/vip_support',
+                'position' => 20,
+                'min_player_level' => 3,
+                'status' => 1,
+            ],
+        ]);
+
+        $publicPayload = $this->controller()->publicCustomerServicePayload();
+        $vipPayload = $this->controller()->levelCustomerServicePayload(3);
+
+        $this->assertSame(['Public Line'], array_column($publicPayload['services'], 'display_name'));
+        $this->assertSame(['Public Line', 'VIP Telegram'], array_column($vipPayload['services'], 'display_name'));
+    }
+
+    public function test_api_contact_endpoints_pass_authenticated_player_level()
+    {
+        $index = file_get_contents(dirname(__DIR__, 3).'/app/Http/Controllers/Api/IndexController.php');
+        $app = file_get_contents(dirname(__DIR__, 3).'/app/Http/Controllers/Api/AppController.php');
+
+        $this->assertStringContainsString('customerServicePayload($this->requestPlayerLevel($request))', $index);
+        $this->assertStringContainsString('customerServicePayload($this->requestPlayerLevel($request))', $app);
+        $this->assertStringContainsString('function requestPlayerLevel(', $index);
+        $this->assertStringContainsString('function requestPlayerLevel(', $app);
+    }
+
     private function controller()
     {
         return new class extends Controller {
             public function publicCustomerServicePayload()
             {
                 return $this->customerServicePayload();
+            }
+
+            public function levelCustomerServicePayload($level)
+            {
+                return $this->customerServicePayload($level);
             }
         };
     }

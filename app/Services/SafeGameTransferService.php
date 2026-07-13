@@ -129,6 +129,13 @@ class SafeGameTransferService
 
     protected function safeAccountToGameTransfer(User $user, $platform, $amount, TgService $tg, $source)
     {
+        if ($limit = (new TcgBusinessOperationService())->amountExceedsPlayerLimit($user, $amount, $platform)) {
+            return [
+                'code' => 209,
+                'message' => $this->playerLimitMessage($limit, 'transfer amount exceeds player limit'),
+            ];
+        }
+
         $reserved = DB::transaction(function () use ($user, $platform, $amount, $source) {
             $active = $this->activePendingTransfer($user->id, $platform, 0);
             if ($active) {
@@ -185,6 +192,12 @@ class SafeGameTransferService
         }
 
         return ['code' => 200, 'message' => '成功', 'balance' => $balance];
+    }
+
+    protected function playerLimitMessage($limit, $fallback)
+    {
+        $remark = trim((string)($limit->remark ?? ''));
+        return $remark === '' ? $fallback : $fallback.': '.$remark;
     }
 
     protected function safeGameToAccountTransfer(User $user, $platform, $amount, TgService $tg, $source)

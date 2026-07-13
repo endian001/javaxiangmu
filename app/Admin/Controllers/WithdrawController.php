@@ -65,7 +65,7 @@ JS
             $grid->actions(function (Grid\Displayers\Actions $actions) {
                 $actions->disableEdit();
                 $actions->disableDelete();
-                if ($actions->row->state == 1 || $actions->row->state == 4) {
+                if ($actions->row->state == 1) {
                     $actions->append(new Pass());
                     $actions->append(new Refuse());
                 }

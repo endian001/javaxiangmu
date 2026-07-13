@@ -5,20 +5,20 @@ use Illuminate\Support\Facades\DB;
 
 class AddReferralActivity extends Migration
 {
-    private $title = 'แนะนำเพื่อน รับทรัพย์สูงสุด 28,888';
+    private $title = 'ชวนเพื่อน รับโบนัสสูงสุด 28,888';
 
     public function up()
     {
         $now = date('Y-m-d H:i:s');
-        $type = DB::table('activity_types')->where('name', 'แนะนำเพื่อน')->first();
+        $type = DB::table('activity_types')->where('name', 'ชวนเพื่อน')->first();
 
         if ($type) {
             $typeId = (int) $type->id;
         } else {
             $typeId = (int) DB::table('activity_types')->insertGetId([
-                'name' => 'แนะนำเพื่อน',
+                'name' => 'ชวนเพื่อน',
                 'state' => 1,
-                'sort_order' => 865,
+                'sort_order' => 800,
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
@@ -28,15 +28,16 @@ class AddReferralActivity extends Migration
             'type' => $typeId,
             'title' => $this->title,
             'entitle' => $this->title,
-            'content' => '<p>ชวนเพื่อนสมัครสมาชิกผ่านลิงก์แนะนำของคุณ รับรางวัลตามจำนวนเพื่อนที่ผ่านเงื่อนไขกิจกรรม</p>',
-            'encontent' => '<p>ชวนเพื่อนสมัครสมาชิกผ่านลิงก์แนะนำของคุณ รับรางวัลตามจำนวนเพื่อนที่ผ่านเงื่อนไขกิจกรรม</p>',
-            'memo' => '<p>เพื่อนที่แนะนำต้องเป็นสมาชิกใหม่และทำตามเงื่อนไขยอดฝากและยอดเทิร์น ระบบจะตรวจสอบสิทธิ์ก่อนจ่ายรางวัล</p>',
-            'enmemo' => '<p>เพื่อนที่แนะนำต้องเป็นสมาชิกใหม่และทำตามเงื่อนไขยอดฝากและยอดเทิร์น ระบบจะตรวจสอบสิทธิ์ก่อนจ่ายรางวัล</p>',
+            'content' => '<p>แชร์ลิงก์ให้เพื่อน สมัครและเล่นตามเงื่อนไข รับโบนัสแนะนำเพื่อนได้จากกิจกรรมนี้</p>',
+            'encontent' => '<p>แชร์ลิงก์ให้เพื่อน สมัครและเล่นตามเงื่อนไข รับโบนัสแนะนำเพื่อนได้จากกิจกรรมนี้</p>',
+            'memo' => '<p>โบนัสจะคำนวณตามเงื่อนไขกิจกรรมและสถานะบัญชีของสมาชิก หากมีข้อสงสัยให้ติดต่อฝ่ายบริการลูกค้า</p>',
+            'enmemo' => '<p>โบนัสจะคำนวณตามเงื่อนไขกิจกรรมและสถานะบัญชีของสมาชิก หากมีข้อสงสัยให้ติดต่อฝ่ายบริการลูกค้า</p>',
             'banner' => '/assets/promotions/referral-banner.webp',
             'app_img' => '/assets/promotions/referral-banner.webp',
             'can_apply' => 0,
             'state' => 1,
-            'sort_order' => 850,
+            'app_state' => 1,
+            'sort_order' => 800,
             'starts_at' => null,
             'ends_at' => null,
             'is_popup' => 0,
@@ -46,8 +47,9 @@ class AddReferralActivity extends Migration
             'app_popup_image' => '/assets/promotions/referral-banner.webp',
             'detail_image' => '/assets/promotions/referral-detail.jpg',
             'app_detail_image' => '/assets/promotions/referral-detail.jpg',
-            'action_url' => '',
-            'requires_auth' => 0,
+            'action_url' => '/member/center',
+            'button_text' => 'ดูรายละเอียด',
+            'requires_auth' => 1,
             'updated_at' => $now,
         ];
 

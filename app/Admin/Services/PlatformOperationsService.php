@@ -130,14 +130,17 @@ class PlatformOperationsService
                 'mch_id',
                 'key',
                 'content',
+                'payimg',
                 'remark',
                 'download_name',
                 'download_url',
                 'wallet_address',
+                'pay_qrcode',
                 'exchange_rate',
                 'min_price',
                 'max_price',
                 'bonus_ratio',
+                'pay_icon',
                 'sort_order',
             ],
         ],
@@ -336,6 +339,77 @@ class PlatformOperationsService
         return $filtered;
     }
 
+    public function statusOptions($code): array
+    {
+        $page = $this->page($code);
+
+        if ($page['mode'] === 'transactions') {
+            return [
+                'pending' => '待处理',
+                'processing' => '处理中',
+                'completed' => '已完成',
+                'failed' => '失败',
+            ];
+        }
+
+        if ($page['mode'] === 'report') {
+            return [
+                '1' => '待审核',
+                '2' => '已完成',
+                '3' => '已拒绝',
+            ];
+        }
+
+        if (in_array($page['mode'], ['records', 'legacy'], true)) {
+            return [
+                'enabled' => '启用',
+                'disabled' => '停用',
+            ];
+        }
+
+        return [];
+    }
+
+    public function normalizeStatus($code, $status, $default = null): string
+    {
+        $options = $this->statusOptions($code);
+        $value = trim((string) $status);
+        if ($value === '') {
+            if ($default !== null) {
+                $value = (string) $default;
+            } else {
+                throw new InvalidArgumentException('状态不能为空');
+            }
+        }
+
+        if (!$options) {
+            return $this->clean($value, 30);
+        }
+
+        $aliases = [];
+        foreach ($options as $optionValue => $label) {
+            $canonical = (string) $optionValue;
+            $aliases[mb_strtolower($canonical)] = $canonical;
+            $aliases[mb_strtolower((string) $label)] = $canonical;
+        }
+
+        if (array_key_exists('enabled', $options) && array_key_exists('disabled', $options)) {
+            foreach (['1', 'true', 'on', 'yes'] as $alias) {
+                $aliases[$alias] = 'enabled';
+            }
+            foreach (['0', 'false', 'off', 'no'] as $alias) {
+                $aliases[$alias] = 'disabled';
+            }
+        }
+
+        $key = mb_strtolower($value);
+        if (!array_key_exists($key, $aliases)) {
+            throw new InvalidArgumentException('状态值不支持：'.$value);
+        }
+
+        return $aliases[$key];
+    }
+
     public function legacyRows($code, array $filters = [], $perPage = 20)
     {
         $code = (string) $code;
@@ -486,6 +560,7 @@ class PlatformOperationsService
     {
         $code = (string) $code;
         if ($code === '20068') {
+            $state = $this->enabledStatusValue($code, isset($input['status']) ? $input['status'] : (isset($input['state']) ? $input['state'] : 'disabled'));
             return $this->saveLegacyTableRow(
                 'pay_types',
                 $id,
@@ -493,7 +568,7 @@ class PlatformOperationsService
                     'name' => $this->required($input, 'name'),
                     'category' => $this->nullableValue($input, 'category'),
                     'bonus_ratio' => $this->nullableValue($input, 'bonus_ratio'),
-                    'state' => $this->statusValue(isset($input['status']) ? $input['status'] : (isset($input['state']) ? $input['state'] : 0)),
+                    'state' => $state,
                     'sort_order' => (int) (isset($input['sort_order']) ? $input['sort_order'] : 0),
                     'merchant_no' => $this->nullableValue($input, 'merchant_no'),
                     'merchant_key' => $this->nullableValue($input, 'merchant_key'),
@@ -509,6 +584,8 @@ class PlatformOperationsService
                 isset($input['account_type']) ? $input['account_type'] : ''
             );
             $sourceId = $decoded['id'];
+            $status = isset($input['status']) ? $input['status'] : 'disabled';
+            $enabled = $this->enabledStatusValue($code, $status);
             if ($source === 'pay_setting') {
                 return $this->saveLegacyTableRow($source, $sourceId, [
                     'bank_id' => (int) $this->required($input, 'bank_id'),
@@ -516,17 +593,23 @@ class PlatformOperationsService
                     'bank_owner' => $this->required($input, 'bank_owner'),
                     'bank_address' => $this->nullableValue($input, 'bank_address', ''),
                     'info' => $this->nullableValue($input, 'info'),
-                    'state' => $this->statusValue(isset($input['status']) ? $input['status'] : 0),
+                    'state' => $enabled,
                 ]);
             }
             if ($source === 'code_pay') {
+                $payimg = $this->nullableValue($input, 'payimg');
+                if ($enabled && trim((string) $payimg) === '') {
+                    throw new InvalidArgumentException('payimg 不能为空');
+                }
+
                 return $this->saveLegacyTableRow($source, $sourceId, [
                     'pay_type_id' => $this->nullableValue($input, 'pay_type_id'),
                     'category' => $this->nullableValue($input, 'category'),
                     'mch_id' => $this->nullableValue($input, 'mch_id'),
                     'key' => $this->nullableValue($input, 'key'),
                     'content' => $this->nullableValue($input, 'content'),
-                    'status' => $this->statusValue(isset($input['status']) ? $input['status'] : 0),
+                    'payimg' => $payimg,
+                    'status' => $enabled,
                     'remark' => $this->nullableValue($input, 'remark'),
                     'download_name' => $this->nullableValue($input, 'download_name', ''),
                     'download_url' => $this->nullableValue($input, 'download_url', ''),
@@ -535,19 +618,31 @@ class PlatformOperationsService
                 ]);
             }
             if ($source === 'usdt_pay') {
+                $payQrcode = $this->nullableValue($input, 'pay_qrcode');
+                $payIcon = $this->nullableValue($input, 'pay_icon');
+                if ($enabled && trim((string) $payQrcode) === '') {
+                    throw new InvalidArgumentException('pay_qrcode 不能为空');
+                }
+                if ($enabled && trim((string) $payIcon) === '') {
+                    throw new InvalidArgumentException('pay_icon 不能为空');
+                }
+
                 return $this->saveLegacyTableRow($source, $sourceId, [
                     'category' => $this->nullableValue($input, 'category'),
                     'wallet_address' => $this->required($input, 'wallet_address'),
+                    'pay_qrcode' => $payQrcode,
                     'exchange_rate' => $this->nullableValue($input, 'exchange_rate', 1),
                     'min_price' => $this->nullableValue($input, 'min_price', 1),
                     'max_price' => $this->nullableValue($input, 'max_price', 10000),
                     'bonus_ratio' => $this->nullableValue($input, 'bonus_ratio', 0),
-                    'status' => $this->statusValue(isset($input['status']) ? $input['status'] : 0),
+                    'pay_icon' => $payIcon,
+                    'status' => $enabled,
                     'sort_order' => (int) (isset($input['sort_order']) ? $input['sort_order'] : 0),
                 ]);
             }
         }
         if ($code === '21150') {
+            $state = $this->enabledStatusValue($code, isset($input['status']) ? $input['status'] : (isset($input['state']) ? $input['state'] : 'disabled'));
             return $this->saveLegacyTableRow('agent_settlements', $id, [
                 'name' => $this->required($input, 'name'),
                 'type' => (int) (isset($input['type']) ? $input['type'] : 0),
@@ -560,7 +655,7 @@ class PlatformOperationsService
                 'e_sport' => $this->nullableValue($input, 'e_sport', 0),
                 'member_fs' => $this->nullableValue($input, 'member_fs', 0),
                 'required_new_members' => $this->nullableValue($input, 'required_new_members', 0),
-                'state' => $this->statusValue(isset($input['status']) ? $input['status'] : (isset($input['state']) ? $input['state'] : 0)),
+                'state' => $state,
             ]);
         }
         if ($code === '12650') {
@@ -574,13 +669,14 @@ class PlatformOperationsService
             ]);
         }
         if ($code === '20032') {
+            $state = $this->enabledStatusValue($code, isset($input['status']) ? $input['status'] : (isset($input['state']) ? $input['state'] : 'disabled'));
             return $this->saveLegacyTableRow('pay_setting', $id, [
                 'bank_id' => (int) $this->required($input, 'bank_id'),
                 'bank_no' => $this->required($input, 'bank_no'),
                 'bank_owner' => $this->required($input, 'bank_owner'),
                 'bank_address' => $this->nullableValue($input, 'bank_address', ''),
                 'info' => $this->nullableValue($input, 'info'),
-                'state' => $this->statusValue(isset($input['status']) ? $input['status'] : (isset($input['state']) ? $input['state'] : 0)),
+                'state' => $state,
             ]);
         }
         if ($code === '31018') {
@@ -600,7 +696,7 @@ class PlatformOperationsService
     public function changeLegacyStatus($code, array $ids, $status)
     {
         $code = (string) $code;
-        $enabled = $this->statusValue($status);
+        $enabled = $this->enabledStatusValue($code, $status);
         if ($code === '31018') {
             return DB::table('game_lists')->whereIn('platform_name', $ids)->update([
                 'site_state' => $enabled,
@@ -889,6 +985,11 @@ class PlatformOperationsService
         return is_string($input[$key])
             ? mb_substr(trim(strip_tags($input[$key])), 0, 10000)
             : $input[$key];
+    }
+
+    private function enabledStatusValue($code, $status): int
+    {
+        return $this->normalizeStatus($code, $status) === 'enabled' ? 1 : 0;
     }
 
     private function statusValue($status)

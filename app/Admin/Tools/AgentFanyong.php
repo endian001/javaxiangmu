@@ -2,6 +2,7 @@
 
 namespace App\Admin\Tools;
 
+use App\Admin\Support\OperationPermission;
 use Dcat\Admin\Grid\Tools\AbstractTool;
 use Illuminate\Http\Request;
 use Cache;
@@ -23,7 +24,7 @@ class AgentFanyong extends AbstractTool
      */
     public function title()
     {
-        return '一键返佣';
+        return '加入返佣队列';
     }
 
     /**
@@ -37,7 +38,7 @@ class AgentFanyong extends AbstractTool
 //        return '您确定要发送新的提醒消息吗？';
 
         // 显示标题和内容
-        return ['您确定要使用一键返佣吗？', ''];
+        return ['确认将全部代理返佣加入队列吗？', '定时任务执行后才会真正入账。'];
     }
 
     /**
@@ -48,9 +49,13 @@ class AgentFanyong extends AbstractTool
      */
     public function handle(Request $request)
     {
+        if (! OperationPermission::can(OperationPermission::AGENT_COMMISSION_SETTLE)) {
+            return $this->response()->error('无权执行代理返佣')->refresh();
+        }
+
         // 你的代码逻辑
         Cache::put('all_agent_fanyong',1);
-        return $this->response()->success('操作成功')->refresh();
+        return $this->response()->success('已加入返佣队列，等待定时任务执行')->refresh();
     }
 
     /**

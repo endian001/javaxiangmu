@@ -13,6 +13,7 @@ class PlatformSettingsService
         'frontend-style' => '前台显示样式',
         'app-package' => 'APP 打包',
         'app-download' => 'APP 下载设置',
+        'wxgame' => 'WXGAME',
     ];
 
     private const FIELDS = [
@@ -92,6 +93,19 @@ class PlatformSettingsService
             ['key' => 'platform_force_download_persistent', 'label' => '强制下载持久化', 'type' => 'switch'],
             ['key' => 'platform_continue_browser_enabled', 'label' => '显示继续使用浏览器', 'type' => 'switch'],
             ['key' => 'platform_scenario_download_rules', 'label' => '首充 / 提现 / 绑卡下载规则', 'type' => 'textarea'],
+        ],
+        'wxgame' => [
+            ['key' => 'wxgame_enabled', 'label' => '启用 WXGAME', 'type' => 'switch'],
+            ['key' => 'wxgame_api_domain', 'label' => 'API 域名', 'type' => 'url'],
+            ['key' => 'wxgame_access_key_id', 'label' => 'AccessKeyId', 'type' => 'text'],
+            ['key' => 'wxgame_access_key_secret', 'label' => 'AccessKeySecret', 'type' => 'text'],
+            ['key' => 'wxgame_app_id', 'label' => 'App ID', 'type' => 'text'],
+            ['key' => 'wxgame_callback_domain', 'label' => '回调地址前缀', 'type' => 'url'],
+            ['key' => 'wxgame_currency', 'label' => '币种', 'type' => 'text'],
+            ['key' => 'wxgame_token_secret', 'label' => '玩家 Token 密钥', 'type' => 'text'],
+            ['key' => 'wxgame_callback_signature_required', 'label' => '回调签名校验', 'type' => 'switch'],
+            ['key' => 'wxgame_callback_sign_window', 'label' => '签名时间窗口秒数', 'type' => 'number'],
+            ['key' => 'wxgame_ssl_verify', 'label' => '请求 SSL 校验', 'type' => 'switch'],
         ],
     ];
 

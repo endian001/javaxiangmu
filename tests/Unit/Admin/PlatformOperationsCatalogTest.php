@@ -80,4 +80,41 @@ class PlatformOperationsCatalogTest extends TestCase
             'merchant_key' => 'must-not-pass',
         ]));
     }
+
+    public function test_it_exposes_page_specific_status_options_and_rejects_invalid_values()
+    {
+        $path = dirname(__DIR__, 3).'/app/Admin/Services/PlatformOperationsService.php';
+        $this->assertFileExists($path);
+        require_once $path;
+
+        $service = new \App\Admin\Services\PlatformOperationsService();
+
+        $this->assertSame([
+            'enabled' => '启用',
+            'disabled' => '停用',
+        ], $service->statusOptions('20028'));
+        $this->assertSame([
+            'pending' => '待处理',
+            'processing' => '处理中',
+            'completed' => '已完成',
+            'failed' => '失败',
+        ], $service->statusOptions('20048'));
+
+        $this->assertSame('enabled', $service->normalizeStatus('20028', 'enabled'));
+        $this->assertSame('completed', $service->normalizeStatus('20048', 'completed'));
+
+        try {
+            $service->normalizeStatus('20028', 'completed');
+            $this->fail('Enable/disable pages should not accept transaction statuses.');
+        } catch (\InvalidArgumentException $exception) {
+            $this->assertStringContainsString('状态', $exception->getMessage());
+        }
+
+        try {
+            $service->normalizeStatus('20048', 'enabled');
+            $this->fail('Transaction pages should not accept enable/disable statuses.');
+        } catch (\InvalidArgumentException $exception) {
+            $this->assertStringContainsString('状态', $exception->getMessage());
+        }
+    }
 }

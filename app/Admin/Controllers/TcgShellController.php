@@ -2,6 +2,7 @@
 
 namespace App\Admin\Controllers;
 
+use App\Admin\Support\TcgMenuAlias;
 use App\Admin\Support\TcgShellCatalog;
 use App\Http\Controllers\Controller;
 use Dcat\Admin\Admin;
@@ -42,6 +43,11 @@ class TcgShellController extends Controller
 
     public function show(Content $content, string $code)
     {
+        $target = TcgMenuAlias::target($code);
+        if ($target) {
+            return redirect(admin_url($target));
+        }
+
         $page = TcgShellCatalog::page($code);
 
         if (!$page) {

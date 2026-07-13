@@ -2,7 +2,7 @@
     class="platform-settings-page"
     id="platformSettingsPage"
     data-current-tab="{{ $tab }}"
-    data-tab-labels="平台配置|下载链接|用户信息|前台显示样式|APP 打包|APP 下载设置"
+    data-tab-labels="平台配置|下载链接|用户信息|前台显示样式|APP 打包|APP 下载设置|WXGAME"
 >
     <style>
         .platform-settings-page { color:#303133; }

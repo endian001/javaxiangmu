@@ -104,6 +104,11 @@ Route::group([
 	$router->post('/tcg/game-management/{code}/status', 'GameManagementController@changeStatus');
 	$router->post('/tcg/game-management/{code}/import', 'GameManagementController@import');
 	$router->get('/tcg/game-management/{code}/export', 'GameManagementController@export');
+	$router->get('/tcg/ops/{code}', 'TcgOperationalRecordsController@index');
+	$router->post('/tcg/ops/{code}/records', 'TcgOperationalRecordsController@save');
+	$router->put('/tcg/ops/{code}/records/{id}', 'TcgOperationalRecordsController@save');
+	$router->delete('/tcg/ops/{code}/records/{id}', 'TcgOperationalRecordsController@delete');
+	$router->get('/tcg/ops/{code}/export', 'TcgOperationalRecordsController@export');
 	$router->get('/tcg/{code}', 'TcgShellController@show')->where('code', '[0-9]+');
 	$router->resource('users', 'UserController');
 	$router->resource('user-vips', 'UserVipController');
@@ -138,7 +143,7 @@ Route::group([
 	$router->resource('bet-sum','BetSumController');
 	$router->resource('templates','TemplateController');
 	$router->get('/templates','TemplateController@index');
-	$router->get('/setDefaultTemplate/{id}/{type}','TemplateController@setDefaultTemplate');
+	$router->post('/setDefaultTemplate/{id}/{type}','TemplateController@setDefaultTemplate');
 	$router->resource('agents','AgentController');
 	$router->resource('agent-applys','AgentApplyController');
 	$router->resource('agent-fenxiang','AgentFenxiangController');
@@ -150,7 +155,6 @@ Route::group([
 	$router->resource('articlescate','ArticlescateController');
 	$router->resource('articles','ArticleController');
 
-	$router->get('/user/upbalance/{id}','UserController@upbalance');
 	$router->resource('user-operate-logs','UserOperateLogController');
 	$router->resource('banners','BannerController');
 	$router->get('clear','SystemConfigController@clear');

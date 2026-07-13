@@ -90,6 +90,13 @@ Route::middleware(['crosstttp','api_auth'])->group(function () {
     Route::post('/user','Api\AuthController@user');  //获取用户信息
     Route::post('/uptransferstatus','Api\IndexController@uptransferstatus');  //更新用户转账模式
     Route::post('/payinfo','Api\PayController@getpayinfo');
+    Route::post('/systembankcardinfo','Api\PayController@systemBankCardInfo');
+    Route::post('/recharge','Api\PayController@recharge');
+    Route::any('/getPayRange','Api\PayController@getPayRange');
+    Route::post('/getcard','Api\PayController@getAllUserCard');
+    Route::post('/delcard','Api\PayController@DelbindCard');
+    Route::post('/getBetAmount','Api\PayController@getBetAmount');
+    Route::post('/refreshusermoney','Api\PayController@refreshusermoney');
   //更新用户转账模式
     
     
@@ -107,6 +114,7 @@ Route::middleware(['crosstttp','api_auth'])->group(function () {
     Route::post('/refreshusermoney','Api\PayController@refreshusermoney');//个人中心  
      
     Route::post('/doactivityapply','Api\IndexController@doactivity');  //优惠活动
+    Route::post('/promotions/{id}/apply','Api\PromotionController@apply');
     Route::post('/activityApplyLog','Api\IndexController@activityApplyLog');
 
     // 其它
@@ -190,7 +198,7 @@ Route::post('/app/update_password','Api\AppController@update_password');  //修�
 Route::post('/app/hall_list','Api\AppController@hall_list');   //获取大厅游戏
 Route::post('/app/api_login','Api\AppController@api_login');  //获取游戏登陆链接
 Route::post('/app/service_center','Api\AppController@service_center');  //获取公告信息
-Route::post('/app/systeminfo','Api\AppController@systeminfo');  //获取在线客服链接
+Route::post('/app/systeminfo','Api\AppController@systeminfo');  // customer service links
 Route::post('/app/querys','Api\AppController@querys');  //获取APP常见问题
 Route::post('/app/userChildren','Api\AppController@userChildren');  //获取代理直属下线数据
 Route::post('/app/Regurgitation','Api\AppController@Regurgitation');  //获取代理直属下线数据

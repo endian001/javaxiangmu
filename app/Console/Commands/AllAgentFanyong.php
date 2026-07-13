@@ -9,6 +9,7 @@ use App\User;
 use Cache;
 use App\Models\SystemConfig;
 use App\Models\TransferLog;
+use App\Models\AgentSettlement;
 
 class AllAgentFanyong extends Command
 {
@@ -53,8 +54,7 @@ class AllAgentFanyong extends Command
                 $diffday = strtotime(date('Y-m-d'))-$settlementday*60*60*24;
                 $val = User::where('isagent','=',1)->where('id','=',$id)->first();
                 if ($val){
-                    // 获取代理的结算方案
-                    $settlement = \App\Models\AgentSettlement::where('id', $val->settlement_id)->first();
+                    $settlement = AgentSettlement::where('id', $val->settlement_id)->first();
                     
                     // 计算当月新增会员数量
                     $currentMonthStart = date('Y-m-01 00:00:00');

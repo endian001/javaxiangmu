@@ -22,6 +22,7 @@ use App\Models\UserOperateLog;
 use App\User;
 use Dcat\Admin\Admin;
 use Illuminate\Support\Facades\DB;
+use App\Models\AgentSettlement;
 
 class Fanyong extends RowAction
 {
@@ -43,8 +44,7 @@ class Fanyong extends RowAction
         $money = 0;
         $val = User::where('isagent','=',1)->where('id','=',$id)->first();
         if ($val){
-            // 获取代理的结算方案
-            $settlement = \App\Models\AgentSettlement::where('id', $val->settlement_id)->first();
+            $settlement = AgentSettlement::where('id', $val->settlement_id)->first();
             
             // 计算当月新增会员数量
             $currentMonthStart = date('Y-m-01 00:00:00');

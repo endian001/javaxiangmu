@@ -22,13 +22,16 @@ class HomeOperationsFrontendSourceTest extends TestCase
         foreach (['/public/index.html', '/public/new-h5/index.html'] as $file) {
             $source = file_get_contents($this->root().$file);
 
-            $this->assertStringContainsString('data-home-banner', $source);
+            $this->assertTrue(
+                strpos($source, 'data-home-banner') !== false || strpos($source, 'data-reference-banner') !== false,
+                $file.' should expose a home banner hook'
+            );
             $this->assertStringContainsString(
-                '/assets/home-operations.css?v=20260711topbar2',
+                '/assets/home-operations.css?v=20260713ops4',
                 $source
             );
             $this->assertStringContainsString(
-                '/assets/home-operations.js?v=20260711topbar2',
+                '/assets/home-operations.js?v=20260713ops4',
                 $source
             );
         }
@@ -72,12 +75,56 @@ class HomeOperationsFrontendSourceTest extends TestCase
         }
     }
 
+    public function test_home_operations_uses_unified_customer_service_opening_flow()
+    {
+        $script = file_get_contents($this->root().'/public/assets/home-operations.js');
+
+        $this->assertStringContainsString('function openCustomerService(', $script);
+        $this->assertStringContainsString('function resolveCustomerServiceUrl(', $script);
+        $this->assertStringContainsString('fallback_url', $script);
+        $this->assertStringContainsString('/api/getservicerurl', $script);
+        $this->assertStringNotContainsString(
+            'data-online-service href="/support/work-orders.html"',
+            $script,
+            'The online customer-service entry should be wired through the shared opener, not permanently hard-coded to work orders.'
+        );
+        $this->assertStringNotContainsString(
+            "renderCustomerServices(root, { services: [], service_url: '/support/work-orders.html' });",
+            $script,
+            'Work orders may remain a fallback, but should not be the default for every customer-service entry before the API resolves.'
+        );
+    }
+
+    public function test_mobile_bottom_customer_service_entry_uses_shared_customer_service_logic()
+    {
+        $source = file_get_contents($this->root().'/public/new-h5/index.html');
+
+        $this->assertStringNotContainsString(
+            'class="bn" href="/support/work-orders.html"',
+            $source,
+            'The mobile bottom customer-service tab should not be permanently hard-coded to the work-order page.'
+        );
+        $this->assertTrue(
+            strpos($source, 'data-customer-service') !== false ||
+            strpos($source, '/api/getservicerurl') !== false,
+            'The mobile bottom customer-service tab should use the shared customer-service flow or fetch /api/getservicerurl.'
+        );
+    }
+
+    public function test_home_operations_does_not_strip_thai_text()
+    {
+        $script = file_get_contents($this->root().'/public/assets/home-operations.js');
+
+        $this->assertStringContainsString('function localizeVisibleCopy(root)', $script);
+        $this->assertStringContainsString('return root || document.body;', $script);
+        $this->assertStringNotContainsString('thaiRunPattern', $script);
+        $this->assertStringNotContainsString('NodeFilter.SHOW_TEXT', $script);
+    }
+
     public function test_desktop_and_mobile_top_bar_match_reference_controls()
     {
         $expected = [
             'brand-logo',
-            'data-home-search-form',
-            'data-home-search-input',
             'data-guest-actions',
             'data-member-actions',
             'language-switch',
@@ -90,6 +137,11 @@ class HomeOperationsFrontendSourceTest extends TestCase
             $source = file_get_contents($this->root().$file);
             foreach ($expected as $marker) {
                 $this->assertStringContainsString($marker, $source);
+            }
+
+            if ($file === '/public/index.html') {
+                $this->assertStringContainsString('data-home-search-form', $source);
+                $this->assertStringContainsString('data-home-search-input', $source);
             }
 
             $this->assertStringNotContainsString('data-member-actions hidden', $source);

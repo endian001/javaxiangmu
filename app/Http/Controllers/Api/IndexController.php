@@ -29,9 +29,11 @@ use App\Models\Banner;
 use App\Models\GameRecord;
 use App\Models\AgentApply;
 use App\Models\GameList;
+use App\Services\PromotionService;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class IndexController extends Controller
 {
@@ -51,7 +53,7 @@ class IndexController extends Controller
             $domain = explode(',',$domain);
             $referer = $_SERVER["HTTP_REFERER"] ?? '';
             if (!in_array($referer,$domain)) {
-                return json_encode(['code'=>401,'message'=>'认证失败']);
+                return json_encode(['code'=>401,'message'=>'Authentication failed']);
                 exit;
             }
         }
@@ -310,7 +312,13 @@ class IndexController extends Controller
 
     public function wxgameStatus(Request $request)
     {
-        $callbackDomain = rtrim((string) (SystemConfig::getValue('wxgame_callback_domain') ?: env('APP_URL')), '/');
+        $appUrl = rtrim((string) env('APP_URL'), '/');
+        $configuredCallback = trim((string) SystemConfig::getValue('wxgame_callback_domain'));
+        $callbackDomain = rtrim($configuredCallback !== '' ? $configuredCallback : $appUrl . '/notify', '/');
+        $callbackPath = (string) parse_url($callbackDomain, PHP_URL_PATH);
+        if ($callbackPath === '' || $callbackPath === '/') {
+            $callbackDomain .= '/notify';
+        }
         return $this->wxgameJson(0, [
             'enabled' => (new TgService)->isWxgameEnabled(),
             'appId' => (string) SystemConfig::getValue('wxgame_app_id'),
@@ -324,6 +332,11 @@ class IndexController extends Controller
                 'bet' => $callbackDomain . '/bet',
                 'win' => $callbackDomain . '/win',
                 'refund' => $callbackDomain . '/refund',
+            ],
+            'availableEndpointBases' => [
+                'notify' => $appUrl . '/notify',
+                'api_wxgame' => $appUrl . '/api/wxgame',
+                'api_notify' => $appUrl . '/api/notify',
             ],
         ]);
     }
@@ -362,6 +375,15 @@ class IndexController extends Controller
         if (!$user || $this->isBlockedApiUser($user)) return $this->wxgameJson(1012, null, 'Player not found');
         if ($this->wxgameRecordExists($transactionId)) {
             return $this->wxgameJson(0, $this->wxgameBalancePayload($user));
+        }
+        $platform = strtoupper(trim((string)($payload['gameBrand'] ?? 'WXGAME')));
+        $gameType = trim((string)($payload['gameType'] ?? ''));
+        $gameCode = trim((string)($payload['gameId'] ?? ''));
+        if ($hit = $this->gameRestrictionHit($user, $platform, $gameType, $gameCode)) {
+            return $this->wxgameJson(1005, null, $this->tcgRestrictionMessage($hit, 'game access restricted'));
+        }
+        if ($limit = $this->amountExceedsPlayerLimit($user, $amount, $platform, $gameType, $gameCode)) {
+            return $this->wxgameJson(1005, null, $this->tcgRestrictionMessage($limit, 'transfer amount exceeds player limit'));
         }
 
         return DB::transaction(function () use ($user, $payload, $amount, $transactionId) {
@@ -609,9 +631,9 @@ class IndexController extends Controller
 		$tg = New TgService;
 		$data = $tg->credit($api_code);
         return $data;
-    }	
+    }
     /**
-     * 公告列表
+     * 閸忣剙鎲￠崚妤勩€?
      *
      * @return void
      */
@@ -622,26 +644,37 @@ class IndexController extends Controller
             ["src"=>"/assets/promotions/welcome-banner.png","background"=>"#f4f6ff"],
             ["src"=>"/assets/promotions/deposit-banner.png","background"=>"rgb(100, 61, 202)"],
             );
-        $notice = Banner::where('type',$type)->select("pic as src","jump_url")->get()->toArray();    
-       
+        $noticeQuery = Banner::where('type', $type);
+        if ($this->hasColumn('banners', 'state')) {
+            $noticeQuery->where('state', 1);
+        }
+        if ($this->hasColumn('banners', 'order')) {
+            $noticeQuery->orderBy('order', 'desc');
+        }
+        $notice = $noticeQuery->orderBy('id', 'desc')->select("pic as src","jump_url")->get()->toArray();
+
         if(count($notice)){
             $bannerlist=[];
             foreach ($notice as $val){
-                $bannerlist[]=["src"=>env('APP_URL').'/uploads/'.$val['src'],"background"=>"#f4f6ff",'url'=>$val['jump_url']] ;
-            }        
+                $bannerlist[]=[
+                    "src"=>$this->formatUploadUrl($val['src'] ?? ''),
+                    "background"=>"#f4f6ff",
+                    'url'=>$val['jump_url'] ?? ''
+                ] ;
+            }
         }
         return $this->returnMsg(200, $bannerlist);
     }
-    
+
     public function article(Request $request)
     {
         $type = $request->input('type');
         $data = Article::where('cateid',$type)->first();
         return $this->returnMsg(200,$data);
     }
-    
+
     /**
-     * 公告列表
+     * 閸忣剙鎲￠崚妤勩€?
      *
      * @return void
      */
@@ -659,10 +692,10 @@ class IndexController extends Controller
         }
         return $this->returnMsg(200, $data);
     }
-        
+
 
     /**
-     * 通知公告列表
+     * 闁氨鐓￠崗顒€鎲￠崚妤勩€?
      *
      * @return void
      */
@@ -674,9 +707,9 @@ class IndexController extends Controller
             $item->vippic = isset($item->vippic) ? $this->formatUploadUrl($item->vippic) : '';
         }
         return $this->returnMsg(200, $vip);
-    }    
+    }
     /**
-     * 通知公告列表
+     * 闁氨鐓￠崗顒€鎲￠崚妤勩€?
      *
      * @return void
      */
@@ -686,7 +719,7 @@ class IndexController extends Controller
         return $this->returnMsg(200, $notice);
     }
     /**
-     * 通知公告列表
+     * 闁氨鐓￠崗顒€鎲￠崚妤勩€?
      *
      * @return void
      */
@@ -694,9 +727,9 @@ class IndexController extends Controller
     {
         $notice = Article::where('cateid','<>',6)->get();
         return $this->returnMsg(200, $notice);
-    }      
+    }
     /**
-     * 通知公告列表
+     * 闁氨鐓￠崗顒€鎲￠崚妤勩€?
      *
      * @return void
      */
@@ -704,9 +737,9 @@ class IndexController extends Controller
     {
         $notice = Article::where('cateid',6)->paginate(10);
         return $this->returnMsg(200, $notice);
-    }   
+    }
     /**
-     * 通知公告列表
+     * 闁氨鐓￠崗顒€鎲￠崚妤勩€?
      *
      * @return void
      */
@@ -715,26 +748,26 @@ class IndexController extends Controller
         $data = $request->all();
         $notice = Article::where('id',$data['id'])->first();
         return $this->returnMsg(200, $notice);
-    }    
+    }
     /**
-     * 公告列表
+     * 閸忣剙鎲￠崚妤勩€?
      *
      * @return void
      */
     public function cateList(Request $request)
     {
-        $list = array(
+        $list = [
             ["id"=>1,"pid"=>0,"name"=>"电子游艺","enname"=>"concise"],
             ["id"=>2,"pid"=>0,"name"=>"棋牌游戏","enname"=>"joker"],
             ["id"=>3,"pid"=>0,"name"=>"视讯直播","enname"=>"realbet"],
             ["id"=>4,"pid"=>0,"name"=>"彩票游戏","enname"=>"lottery"],
             ["id"=>5,"pid"=>0,"name"=>"电竞游戏","enname"=>"gaming"],
             ["id"=>6,"pid"=>0,"name"=>"体育赛事","enname"=>"sport"],
-            );
+        ];
         return $this->returnMsg(200, $list);
-    }    
+    }
     /**
-     * 个人消息
+     * 娑擃亙姹夊☉鍫熶紖
      *
      * @return void
      */
@@ -748,49 +781,54 @@ class IndexController extends Controller
         $data = $request->all();
         $limit = $data['limit'] ?? 10;
         $page = $data['page'] ?? 1;
-        
-        // 添加消息过滤逻辑，与messagecenter保持一致
-        $token = $request->header('authorization');
+
+        // 濞ｈ濮炲☉鍫熶紖鏉╁洦鎶ら柅鏄忕帆閿涘奔绗宮essagecenter娣囨繃瀵旀稉鈧懛?        $token = $request->header('authorization');
         $token = str_replace('Bearer ','',$token) ;
-        $user = User::where('api_token',$token)->first(); 
-        
-        // 构建查询条件
+        $user = User::where('api_token',$token)->first();
+
+        // 閺嬪嫬缂撻弻銉嚄閺夆€叉
         $query = Message::query();
-        
-        // 基础条件：面向所有用户的消息
+
+        // 閸╄櫣顢呴弶鈥叉閿涙岸娼伴崥鎴炲閺堝鏁ら幋椋庢畱濞戝牊浼?
         $query->where(function($q) {
             $q->where('user_id', 0)
               ->where('vip_id', 0)
               ->where('isagent', 0);
         });
-        
-        // 如果是代理用户，可以看到代理消息
+
+        // 婵″倹鐏夐弰顖欏敩閻炲棛鏁ら幋鍑ょ礉閸欘垯浜掗惇瀣煂娴狅絿鎮婂☉鍫熶紖
         if ($user->isagent == 1) {
             $query->orWhere('isagent', 1);
         }
-        
-        // 可以看到对应VIP等级的消息（排除VIP黑名单消息）
+
+        // 閸欘垯浜掗惇瀣煂鐎电懓绨睼IP缁涘楠囬惃鍕Х閹垽绱欓幒鎺楁珟VIP姒涙垵鎮曢崡鏇熺Х閹垽绱?
         $query->orWhere(function($q) use ($user) {
             $q->where('vip_id', $user->vip)
               ->where('isagent', '!=', 2);
         });
-        
-        // 可以看到专门发给自己的消息
-        $query->orWhere('user_id', $user->id);
-        
+
+        // 閸欘垯浜掗惇瀣煂娑撴捇妫崣鎴犵舶閼奉亜绻侀惃鍕Х閹?        $query->orWhere('user_id', $user->id);
+
         $list = $query->orderBy('id', 'desc')->paginate($limit, ['*'], 'page', $page);
-        
+
         return $this->returnMsg(200, $list);
     }
     /**
-     * 活动类型
+     * 濞茶濮╃猾璇茬€?
      *
      * @return void
      */
     public function activityType()
     {
-        $columns = $this->selectExistingColumns('activity_types', ['id', 'name', 'enname', 'icon', 'created_at']);
-        $list = ActivityType::select($columns ?: ['*'])->orderBy('id', 'asc')->get();
+        $columns = $this->selectExistingColumns('activity_types', ['id', 'name', 'enname', 'icon', 'state', 'sort_order', 'created_at']);
+        $query = ActivityType::select($columns ?: ['*']);
+        if ($this->hasColumn('activity_types', 'state')) {
+            $query->where('state', 1);
+        }
+        if ($this->hasColumn('activity_types', 'sort_order')) {
+            $query->orderBy('sort_order', 'desc');
+        }
+        $list = $query->orderBy('id', 'asc')->get();
         foreach ($list as $item) {
             $item->name = $item->name ?? '';
             $item->enname = $item->enname ?? '';
@@ -800,7 +838,7 @@ class IndexController extends Controller
     }
 
     /**
-     * 活动列表
+     * 濞茶濮╅崚妤勩€?
      *
      * @param Request $request
      * @return void
@@ -812,31 +850,30 @@ class IndexController extends Controller
         ];
         $this->validate($request, $rules, $this->messages);
         $type = $request->input('type', '');
-        $columns = $this->selectExistingColumns('activities', [
-            'id', 'title', 'type', 'entitle', 'memo', 'enmemo', 'apply_count',
-            'banner', 'app_img', 'can_apply', 'state', 'app_state', 'created_at'
-        ]);
-        $list = Activity::when($type, function ($query) use ($type) {
-            return $query->where('type', $type);
-        })->where('state',1)->select($columns ?: ['*'])->orderBy('id', 'desc')->paginate(99);
-		foreach($list as $key => $value){
-            $list[$key]['title'] = $value['title'] ?? '';
-            $list[$key]['entitle'] = $value['entitle'] ?? '';
-            $list[$key]['type'] = (int)($value['type'] ?? 0);
-            $list[$key]['apply_count'] = (int)($value['apply_count'] ?? 0);
-            $list[$key]['can_apply'] = (int)($value['can_apply'] ?? 0);
-            $list[$key]['state'] = (int)($value['state'] ?? 0);
-			$list[$key]['banner'] = $this->formatUploadUrl($value['banner'] ?? '');
-            $list[$key]['app_img'] = $this->formatUploadUrl($value['app_img'] ?? '');
-		}
+        $channel = $this->promotionChannel($request);
+        $rows = [];
+        foreach ($this->promotionVisibleActivities($request, $type) as $activity) {
+            $rows[] = $this->legacyPromotionPayload($activity, $channel, false);
+        }
+
+        $page = max(1, (int) $request->input('page', 1));
+        $perPage = max(1, min(99, (int) $request->input('pagesize', $request->input('limit', 99))));
+        $list = new LengthAwarePaginator(
+            array_slice($rows, ($page - 1) * $perPage, $perPage),
+            count($rows),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
+
         return $this->returnMsg(200, $list);
     }
     /**
-     * 活动详情
+     * 濞茶濮╃拠锔藉剰
      *
      * @param Request $request
      * @return void
-     */    
+     */
     public function activitydeatil(Request $request)
     {
         $rules = [
@@ -844,50 +881,30 @@ class IndexController extends Controller
         ];
         $this->validate($request, $rules, $this->messages);
         $id = $request->input('id', 0);
-        $activity = Activity::where('id', $id)->where('state', 1)->first();
-        if (!$activity) {
-            return $this->returnMsg(200, [
-                'id' => (int)$id,
-                'title' => '',
-                'entitle' => '',
-                'type' => 0,
-                'content' => '',
-                'memo' => '',
-                'enmemo' => '',
-                'apply_count' => 0,
-                'banner' => '',
-                'app_img' => '',
-                'can_apply' => 0,
-                'state' => 0,
-            ], 'activity not found');
+        $channel = $this->promotionChannel($request);
+        $activity = Activity::with('type_data')->where('id', $id)->first();
+        if (!$activity || empty((new PromotionService())->visible([$activity], $channel))) {
+            return $this->returnMsg(200, $this->legacyPromotionFallback($id), 'activity not found');
         }
-        $activity->title = $activity->title ?? '';
-        $activity->entitle = $activity->entitle ?? '';
-        $activity->content = $activity->content ?? '';
-        $activity->memo = $activity->memo ?? '';
-        $activity->enmemo = $activity->enmemo ?? '';
-        $activity->apply_count = (int)($activity->apply_count ?? 0);
-        $activity->can_apply = (int)($activity->can_apply ?? 0);
-		$activity->app_img = $this->formatUploadUrl($activity->app_img ?? '');
-		$activity->banner = $this->formatUploadUrl($activity->banner ?? '');
-        return $this->returnMsg(200, $activity);
+
+        return $this->returnMsg(200, $this->legacyPromotionPayload($activity, $channel, true));
     }
 
     /**
-     * 获取客服链接
+     * 閼惧嘲褰囩€广垺婀囬柧鐐复
      *
      * @return void
      */
-    public function getServicerUrl()
+    public function getServicerUrl(Request $request)
     {
-        return $this->returnMsg(200, $this->customerServicePayload());
+        return $this->returnMsg(200, $this->customerServicePayload($this->requestPlayerLevel($request)));
     }
 
     public function workOrderList(Request $request)
     {
         $user = $this->activeUserFromBearer($request);
         if (!$user) {
-            return $this->returnMsg(401, [], '未登录');
+            return $this->returnMsg(401, [], 'Authentication required');
         }
 
         $pageSize = max(1, min(50, (int) $request->input('page_size', $request->input('limit', 10))));
@@ -918,7 +935,7 @@ class IndexController extends Controller
     {
         $user = $this->activeUserFromBearer($request);
         if (!$user) {
-            return $this->returnMsg(401, [], '未登录');
+            return $this->returnMsg(401, [], 'Authentication required');
         }
 
         $id = $id ?: $request->input('id', $request->input('work_order_id', $request->input('order_id')));
@@ -928,7 +945,7 @@ class IndexController extends Controller
             ->first();
 
         if (!$workOrder) {
-            return $this->returnMsg(404, [], '工单不存在');
+            return $this->returnMsg(404, [], 'Work order not found');
         }
 
         return $this->returnMsg(200, $this->formatWorkOrder($workOrder, true), 'success');
@@ -938,7 +955,7 @@ class IndexController extends Controller
     {
         $user = $this->activeUserFromBearer($request);
         if (!$user) {
-            return $this->returnMsg(401, [], '未登录');
+            return $this->returnMsg(401, [], 'Authentication required');
         }
 
         $title = trim((string) $request->input('title', ''));
@@ -950,7 +967,7 @@ class IndexController extends Controller
             $title = mb_substr($content, 0, 30);
         }
         if ($title === '' || $content === '') {
-            return $this->returnMsg(422, [], '标题和内容不能为空');
+            return $this->returnMsg(422, [], 'Title and content are required');
         }
 
         $allowedPriorities = ['low', 'normal', 'high', 'urgent'];
@@ -983,21 +1000,21 @@ class IndexController extends Controller
     {
         $user = $this->activeUserFromBearer($request);
         if (!$user) {
-            return $this->returnMsg(401, [], '未登录');
+            return $this->returnMsg(401, [], 'Authentication required');
         }
 
         $id = $id ?: $request->input('id', $request->input('work_order_id', $request->input('order_id')));
         $content = trim((string) $request->input('content', $request->input('message', '')));
         if ($content === '') {
-            return $this->returnMsg(422, [], '回复内容不能为空');
+            return $this->returnMsg(422, [], 'Reply content is required');
         }
 
         $workOrder = \App\Models\WorkOrder::where('user_id', $user->id)->where('id', (int) $id)->first();
         if (!$workOrder) {
-            return $this->returnMsg(404, [], '工单不存在');
+            return $this->returnMsg(404, [], 'Work order not found');
         }
         if ($workOrder->status === 'closed') {
-            return $this->returnMsg(422, [], '工单已关闭');
+            return $this->returnMsg(422, [], 'Work order is closed');
         }
 
         \App\Models\WorkOrderReply::create([
@@ -1017,13 +1034,13 @@ class IndexController extends Controller
     {
         $user = $this->activeUserFromBearer($request);
         if (!$user) {
-            return $this->returnMsg(401, [], '未登录');
+            return $this->returnMsg(401, [], 'Authentication required');
         }
 
         $id = $id ?: $request->input('id', $request->input('work_order_id', $request->input('order_id')));
         $workOrder = \App\Models\WorkOrder::where('user_id', $user->id)->where('id', (int) $id)->first();
         if (!$workOrder) {
-            return $this->returnMsg(404, [], '工单不存在');
+            return $this->returnMsg(404, [], 'Work order not found');
         }
 
         $workOrder->status = 'closed';
@@ -1080,7 +1097,7 @@ class IndexController extends Controller
 
 
     /**
-     * 获取游戏分类
+     * 閼惧嘲褰囧〒鍛婂灆閸掑棛琚?
      *
      * @param Request $request
      * @return void
@@ -1135,7 +1152,7 @@ class IndexController extends Controller
     }
 
     /**
-     * 获取游戏地址
+     * 閼惧嘲褰囧〒鍛婂灆閸︽澘娼?
      *
      * @param Request $request
      * @return void
@@ -1155,7 +1172,7 @@ class IndexController extends Controller
 
         $this->validate($request, $rules, $this->messages);
         $data = $request->all();
-     
+
         $api_code = strtoupper(trim((string)$data['plat_name']));
         $rawGameType = trim((string)($data['game_type'] ?? ''));
         $rawGameCode = trim((string)($data['game_code'] ?? ''));
@@ -1175,13 +1192,17 @@ class IndexController extends Controller
         if (!$this->isGamePlayable($api_code, $gameType, $gameCode)) {
             return $this->returnMsg(500, [], 'game is closed or missing');
         }
-        
+
         $token = $request->header('authorization');
         $token = str_replace('Bearer ','',$token) ;
-        
+
         $user = User::where('api_token',$token)->lockForUpdate()->first();
         if (!$user) {
             return $this->returnMsg(500, [], 'login expired');
+        }
+
+        if ($hit = $this->gameRestrictionHit($user, $api_code, $gameType, $gameCode)) {
+            return $this->returnMsg(500, [], $this->tcgRestrictionMessage($hit, 'game access restricted'));
         }
 
         $tg = new TgService;
@@ -1440,9 +1461,9 @@ class IndexController extends Controller
         $transferService = new SafeGameTransferService();
         return $transferService->autoMoveToPlatform($user, $plat_name, new TgService);
 	}
-    
+
     /**
-     * 进入游戏后自动转账到游戏账户
+     * 鏉╂稑鍙嗗〒鍛婂灆閸氬氦鍤滈崝銊ㄦ祮鐠愶箑鍩屽〒鍛婂灆鐠愶附鍩?
      * @return void
      */
     public function transToTgAccount($user,$plat_name, $game_type)
@@ -1456,9 +1477,9 @@ class IndexController extends Controller
         $result = $transferService->autoMoveToPlatform($user, $plat_name, new TgService);
 
         return ($result['code'] ?? 201) == 200;
-    }    
+    }
     /**
-     * 下注记录
+     * 娑撳鏁炵拋鏉跨秿
      *
      * @param Request $request
      * @return void
@@ -1475,36 +1496,36 @@ class IndexController extends Controller
                     break;
                 case 2:
                     list($start, $end) =  [date('Y-m-d 00:00:00',time()-7*60*60*24), date('Y-m-d 23:59:59',time())];
-                    break;  
+                    break;
                 case 3:
                     list($start, $end) =[date('Y-m-d 00:00:00',time()-15*60*60*24), date('Y-m-d 23:59:59',time())];
-                    break; 
+                    break;
                 case 4:
                     list($start, $end) =[date('Y-m-d 00:00:00',time()-30*60*60*24), date('Y-m-d 23:59:59',time())];
-                    break; 
+                    break;
                 case 5:
                     list($start, $end) = [date('Y-m-d 00:00:00',time()-1*60*60*24), date('Y-m-d 23:59:59',time()-1*60*60*24)];
-                    break; 
+                    break;
                 case 6:
                     $weekStart = strtotime('monday this week');
                     list($start, $end) = [date('Y-m-d 00:00:00', $weekStart), date('Y-m-d 23:59:59',time())];
-                    break; 
+                    break;
                 case 7:
                     $lastWeekStart = strtotime('monday last week');
                     $lastWeekEnd = strtotime('sunday last week');
                     list($start, $end) = [date('Y-m-d 00:00:00', $lastWeekStart), date('Y-m-d 23:59:59', $lastWeekEnd)];
-                    break;                     
+                    break;
             }
         }
         $api_type = $data['api_type'] ?? '';
-    
+
         $token = $request->header('authorization');
         $token = str_replace('Bearer ','',$token) ;
         $user = User::where('api_token',$token)->first();
         $pagesize = isset($data['pagesize']) ? $data['pagesize'] : 10 ;
-        
+
                 $list = GameRecord::where('user_id', $user->id)
-                
+
                   ->when($api_type, function ($query) use ($api_type) {
                         return $query->where('platform_type', strtolower($api_type));
                     })
@@ -1515,14 +1536,14 @@ class IndexController extends Controller
                     })->orderBy('id', 'desc')->select('bet_id','bet_time','platform_type','bet_amount','win_loss','status')->paginate($pagesize);
                     foreach ($list as $k => $v) {
                         $list[$k]['Code'] =$this->game_list[$v['platform_type']] ?? '';
-                      
-                    }                        
-           
+
+                    }
+
         return $this->returnMsg(200, $list);
     }
 
     /**
-     * 获取游戏
+     * 閼惧嘲褰囧〒鍛婂灆
      *
      * @return void
      */
@@ -1539,7 +1560,7 @@ class IndexController extends Controller
 
 
     /**
-     * 交易记录
+     * 娴溿倖妲楃拋鏉跨秿
      *
      * @return void
      */
@@ -1548,7 +1569,7 @@ class IndexController extends Controller
         $data = $request->all();
         $token = $request->header('authorization');
         $token = str_replace('Bearer ','',$token) ;
-        $user = User::where('api_token',$token)->first();        
+        $user = User::where('api_token',$token)->first();
         $start = $end = '';
         if (isset($data['date'])) {
             switch($data['date']){
@@ -1557,21 +1578,21 @@ class IndexController extends Controller
                     break;
                 case 2:
                     list($start, $end) =  [date('Y-m-d 00:00:00',time()-7*60*60*24), date('Y-m-d 23:59:59',time())];
-                    break;  
+                    break;
                 case 3:
                     list($start, $end) =[date('Y-m-d 00:00:00',time()-15*60*60*24), date('Y-m-d 23:59:59',time())];
-                    break; 
+                    break;
                 case 4:
                     list($start, $end) =[date('Y-m-d 00:00:00',time()-30*60*60*24), date('Y-m-d 23:59:59',time())];
-                    break;                     
+                    break;
             }
         }
         $type = $data['type'];
         $api_type = $data['api_type'] ?? '';
-        $pagesize = isset($data['pagesize']) ? $data['pagesize'] : 10 ;    
+        $pagesize = isset($data['pagesize']) ? $data['pagesize'] : 10 ;
         $gamelist = $this->gamemoney_list;
 
-        $pay_way =[1=>'银行卡',2 => '',3=>'支付宝',4=>'微信',5 => 'USDT-TRC20',6 => 'USDT-ERC20', 10 => '充值赠送'];
+        $pay_way =[1=>'Bank card',2 => '',3=>'Alipay',4=>'WeChat',5 => 'USDT-TRC20',6 => 'USDT-ERC20', 10 => 'USDT'];
         switch ($type) {
             case 1:
                 $list = Recharge::where('user_id', $user->id)
@@ -1583,10 +1604,10 @@ class IndexController extends Controller
                     foreach ($list as $k => $v) {
                         $list[$k]['pay_way'] = $pay_way[$v['pay_way']];
                         $list[$k]['amount'] = abs($v['amount']);
-                    }                        
+                    }
                 break;
             case 2:
-                $pay_way = [0 => '未记录',1 => '银行卡',2 => 'USDT-TRC20',3 => 'USDT-ERC20'];
+                $pay_way = [0 => 'Bank card',1 => 'Bank card',2 => 'USDT-TRC20',3 => 'USDT-ERC20'];
                 $list = Withdraw::where('user_id', $user->id)
                     ->when($start, function ($query) use ($start) {
                         return $query->where('created_at', '>=', $start);
@@ -1596,8 +1617,8 @@ class IndexController extends Controller
                     foreach ($list as $k => $v) {
                         $list[$k]['pay_way'] = $pay_way[$v['type']];
                         $list[$k]['amount'] = abs($v['real_money']);
-                    }                       
-                break; 
+                    }
+                break;
             case 3:
                 $list = TransferLog::where('user_id', $user->id)->where('transfer_type', 0)
                     ->when($start, function ($query) use ($start) {
@@ -1607,12 +1628,12 @@ class IndexController extends Controller
                     })->when($api_type,function ($query) use ($api_type){
                         return $query->where('api_type',$api_type);
                     })->select('real_money','created_at','state','api_type')->orderBy('id', 'desc')->paginate($pagesize);
-                  
+
                     foreach ($list as $k => $v) {
                         $list[$k]['pay_way'] = $gamelist[$v['api_type']];
                         $list[$k]['amount'] = abs($v['real_money']);
-                    }                    
-                break; 
+                    }
+                break;
             case 4:
                 $list = TransferLog::where('user_id', $user->id)->whereIn('transfer_type', [1,3])
                     ->when($start, function ($query) use ($start) {
@@ -1624,14 +1645,14 @@ class IndexController extends Controller
                     })->select('real_money','created_at','state','api_type')->orderBy('id', 'desc')->paginate($pagesize);
                     foreach ($list as $k => $v) {
                         if($v['api_type']=='web'){
-                            $list[$k]['pay_way'] ='优惠活动';
+                            $list[$k]['pay_way'] = 'Wallet';
                         }else{
                             $list[$k]['pay_way'] = $gamelist[$v['api_type']];
                         }
-                        
+
                         $list[$k]['amount'] = abs($v['real_money']);
                     }
-                break;                 
+                break;
             default:
                 // code...
                 break;
@@ -1643,13 +1664,12 @@ class IndexController extends Controller
 
 
     /**
-     * 交易记录
+     * 娴溿倖妲楃拋鏉跨秿
      *
      * @return void
      */
     public function rechargeRecord(Request $request)
     {
-
         $data = $request->all();
         $start = $end = '';
         if (isset($data['time'])) {
@@ -1662,21 +1682,14 @@ class IndexController extends Controller
             })->when($end, function ($query) use ($end) {
                 return $query->where('created_at', '<=', $end);
             })->orderBy('id', 'desc')->paginate(10);
+
         foreach ($list as $k => $v) {
-            //$list[$k]['state'] = $this->state[$v->state];
-
-            $list[$k]['type'] = ($v->pay_way == 10) ? '充值赠送' : '充值';
+            $list[$k]['type'] = ($v->pay_way == 10) ? 'USDT' : 'Bank card';
         }
-        return $this->returnMsg(200, $list);
 
+        return $this->returnMsg(200, $list);
     }
 
-
-    /**
-     * 交易记录
-     *
-     * @return void
-     */
     public function WithdrawRecord(Request $request)
     {
         $data = $request->all();
@@ -1685,28 +1698,27 @@ class IndexController extends Controller
             list($start, $end) = [$data['time'][0], $data['time'][1]];
         }
 
-
         $list = Withdraw::where('user_id', Auth::id())
             ->when($start, function ($query) use ($start) {
                 return $query->where('created_at', '>=', $start);
             })->when($end, function ($query) use ($end) {
                 return $query->where('created_at', '<=', $end);
             })->orderBy('id', 'desc')->paginate(10);
+
         foreach ($list as $k => $v) {
             $list[$k]['state'] = $this->state[$v->state];
             $list[$k]['out_trade_no'] = $v->order_sn;
-            $list[$k]['type'] = '提现';
-
+            $list[$k]['type'] = 'Bank card';
         }
-        return $this->returnMsg(200, $list);
 
+        return $this->returnMsg(200, $list);
     }
 
     public function userbalancelist(Request $request){
         $data = $request->all();
         $token = $request->header('authorization');
         $token = str_replace('Bearer ','',$token) ;
-        $user = User::where('api_token',$token)->first();          
+        $user = User::where('api_token',$token)->first();
         $Api = Api::where('state',1)->orderBy('order_by', 'asc')->get()->toArray();
 		$data = array();
         foreach($Api as $key => $v){
@@ -1718,7 +1730,7 @@ class IndexController extends Controller
 		}
         return $this->returnMsg(200, $data);
     }
-    public function userapimoney(Request $request)   
+    public function userapimoney(Request $request)
     {
         $api_code = $request->route('api_code');
         $token = $request->header('authorization');
@@ -1737,23 +1749,23 @@ class IndexController extends Controller
 				'api_pass' => 123456,
 				'api_code' => $api_code,
 			];
-			$User_Api = User_Api::create($arr);		    
-		}        
+			$User_Api = User_Api::create($arr);
+		}
         $result = $tg->balance($api_code,$user->username);
 		if($result['code'] != 200){
 			return $this->returnMsg(201, '', $result['message']);
-		}		
+		}
 		$User_Api->api_money = $result['data'];
-		$User_Api->save();		
-        return $this->returnMsg(200,['balance' => $result['data']]);      
-    } 
+		$User_Api->save();
+        return $this->returnMsg(200,['balance' => $result['data']]);
+    }
     public function uptransferstatus(Request $request){
             $data = $request->all();
             $token = $request->header('authorization');
             $token = str_replace('Bearer ','',$token) ;
-            $user = User::where('api_token',$token)->first();  
-            $user->update($data);        
-            return $this->returnMsg(200, '', '申请成功');
+            $user = User::where('api_token',$token)->first();
+            $user->update($data);
+            return $this->returnMsg(200, '', 'success');
     }
 
     public function fanshui(Request $request){
@@ -1771,13 +1783,13 @@ class IndexController extends Controller
                     break;
                 case 2:
                     list($start, $end) =  [date('Y-m-d 00:00:00',time()-7*60*60*24), date('Y-m-d 23:59:59',time())];
-                    break;  
+                    break;
                 case 3:
                     list($start, $end) =[date('Y-m-d 00:00:00',time()-15*60*60*24), date('Y-m-d 23:59:59',time())];
-                    break; 
+                    break;
                 case 4:
                     list($start, $end) =[date('Y-m-d 00:00:00',time()-30*60*60*24), date('Y-m-d 23:59:59',time())];
-                    break;                     
+                    break;
             }
         }
         $api_type = $data['api_type'] ?? '';
@@ -1815,7 +1827,7 @@ class IndexController extends Controller
                 if ($userfanshui) {
                     $userinfo = Users::where('id', $user->id)->lockForUpdate()->first();
                     if (!$userinfo) {
-                        return $this->returnMsg(202, '', 'user not found');
+                        return $this->returnMsg(202, '', 'No eligible records');
                     }
                     $userinfo->balance = $userinfo->balance + $userfanshui;
                     $userinfo->save();
@@ -1826,12 +1838,12 @@ class IndexController extends Controller
                     foreach ($betlist as $val){
                         $betidarray[]=$val['betid'];
                     }
-                    
+
                     GameRecord::where('user_id', $user->id)->whereIn('bet_id', $betidarray)->update(['is_back' => 1, 'updated_at' => date('Y-m-d H:i:s')]);
-                    
-                    return $this->returnMsg(200, '', '成功领取');
+
+                    return $this->returnMsg(200, '', 'success');
                 } else {
-                    return $this->returnMsg(202, '', '没有可领取的返水');
+                    return $this->returnMsg(202, '', 'No eligible records');
                 }
 
     }
@@ -1840,23 +1852,23 @@ class IndexController extends Controller
     {
         $banklist = Bank::where('state', 1)->get();
         foreach ($banklist as &$val){
-            $val->ico= env('APP_URL').'/uploads/'. $val->bank_img;    
-        }         
+            $val->ico= env('APP_URL').'/uploads/'. $val->bank_img;
+        }
          return $this->returnMsg(200, $banklist);
     }
-    
+
     public function getpaybank()
     {
 		$cardlist = PaySetting::where('state',1)->get();
 		foreach ($cardlist as &$val){
-			if($val->bank_data->bank_name!='USDT' || $val->bank_data->bank_name!='银行类型后台添加'){
-				$val->ico= env('APP_URL').'/uploads/'. $val->bank_data->bank_img; 
+			if($val->bank_data->bank_name!='USDT'){
+				$val->ico= env('APP_URL').'/uploads/'. $val->bank_data->bank_img;
 			}else{
 				$val->ico='';
 			}
-		}        
+		}
          return $this->returnMsg(200, $cardlist);
-    }    
+    }
 
     public function doactivity(Request $request){
             $data = $request->all();
@@ -1867,28 +1879,37 @@ class IndexController extends Controller
 
             $activityId = (int)($data['activityid'] ?? ($data['activity_id'] ?? ($data['id'] ?? 0)));
             if ($activityId <= 0) {
-                return $this->returnMsg(202, '', 'activity id required');
+                return $this->returnMsg(202, '', 'No eligible records');
             }
 
             $activity = Activity::where('id', $activityId)->first();
             if(empty($activity)){
-                return $this->returnMsg(202, '', '活动不存在');
+                return $this->returnMsg(202, '', 'No eligible records');
             }
 
             if ((int)($activity->state ?? 0) !== 1 || (int)($activity->can_apply ?? 0) !== 1) {
-                return $this->returnMsg(202, '', 'activity can not apply');
+                return $this->returnMsg(202, '', 'No eligible records');
+            }
+
+            if ($hit = $this->activityBlacklistHit($user, $activityId)) {
+                return $this->returnMsg(202, '', $this->activityBlacklistMessage($hit, 'No eligible records'));
+            }
+
+            $couponCheck = $this->validateActivityCouponForApply($request, $user, $activityId);
+            if (!$couponCheck['ok']) {
+                return $this->returnMsg(202, '', $couponCheck['message']);
             }
 
             $isapple = ActivityApply::where("user_id",$user->id)->where('activity_id',$activityId)->first();
             if($isapple){
                 if($isapple->state==1){
-                    return $this->returnMsg(202, '', '您已经申请过，等待管理员审核');
+                    return $this->returnMsg(202, '', 'No eligible records');
                 }
                 if($isapple->state==2){
-                    return $this->returnMsg(202, '', '您已经申请过，已审核通过');
+                    return $this->returnMsg(202, '', 'No eligible records');
                 }
                 if($isapple->state==3){
-                    return $this->returnMsg(202, '', '您已经申请过，审核未通过');
+                    return $this->returnMsg(202, '', 'No eligible records');
                 }
             }
 
@@ -1897,14 +1918,32 @@ class IndexController extends Controller
             $arr['state'] = 1;
             $arr['created_at'] = date('Y-m-d H:i:s');
             $arr['updated_at'] = date('Y-m-d H:i:s');
-            if(ActivityApply::create($arr)){
-                return $this->returnMsg(200, '', '申请成功');
-            }else{
-                return $this->returnMsg(200, '', '申请失败');
+            try {
+                $created = DB::transaction(function () use ($arr, $couponCheck, $user) {
+                    $created = ActivityApply::create($arr);
+                    if (!$this->markActivityCouponUsed($couponCheck['coupon'], $user)) {
+                        throw new \RuntimeException('activity coupon consume failed');
+                    }
+
+                    return $created;
+                });
+            } catch (\Throwable $e) {
+                if (stripos($e->getMessage(), 'Duplicate') !== false || stripos($e->getMessage(), 'activity_apply_activity_id_user_id_unique') !== false) {
+                    return $this->returnMsg(202, '', 'No eligible records');
+                }
+
+                \Illuminate\Support\Facades\Log::error('activity apply failed', [
+                    'user_id' => $user->id,
+                    'activity_id' => $activityId,
+                    'message' => $e->getMessage(),
+                ]);
+                return $this->returnMsg(500, '', 'activity apply failed');
             }
 
+            return $this->returnMsg($created ? 200 : 500, '', $created ? 'activity apply success' : 'activity apply failed');
+
     }
-    
+
     public function activityApplyLog(Request $request)
     {
         $user = $this->apiUser($request);
@@ -1921,18 +1960,21 @@ class IndexController extends Controller
         return $this->returnMsg(200,$list);
     }
     /**
-     * 用户所有银行卡
+     * 閻劍鍩涢幍鈧張澶愭懕鐞涘苯宕?
      */
     public function getAllUserCard(Request $request)
     {
      $token = $request->header('authorization');
      $token = str_replace('Bearer ','',$token) ;
-            $user = User::where('api_token',$token)->first(); 
+            $user = User::where('api_token',$token)->first();
+        if (!$user) {
+            return $this->returnMsg(401, [], 'Authentication required');
+        }
         $list = UserCard::where('user_id', $user->id)->get();
         foreach ($list as &$val){
 			if($val->bank!='USDT' && $val->bank != 'ebpay'){
 				$banklist = Bank::where('bank_name', $val->bank)->first();
-				$val->ico= env('APP_URL').'/uploads/'. $banklist->bank_img;    
+				$val->ico= $banklist ? env('APP_URL').'/uploads/'. $banklist->bank_img : '';
 			}else{
 				$val->ico='';
 			}
@@ -1941,8 +1983,7 @@ class IndexController extends Controller
     }
 
     /**
-     * 系统银行卡信息
-     */
+     * 缁崵绮洪柧鎯邦攽閸椻€蹭繆閹?     */
     public function systemBankCardInfo(Request $request)
     {
         $data = $request->all();
@@ -1954,7 +1995,7 @@ class IndexController extends Controller
 
         return $this->returnMsg(200, $card);
     }
-    
+
 
     public function gameslist(Request $request)
     {
@@ -1964,84 +2005,82 @@ class IndexController extends Controller
         $gamelist = $gamelist['data'];
        return $this->returnMsg(200, $gamelist);
     }
-    
+
     public function  messagecenter(Request $request){
      $token = $request->header('authorization');
      $token = str_replace('Bearer ','',$token) ;
-        $user = User::where('api_token',$token)->first(); 
-        
+        $user = User::where('api_token',$token)->first();
+
         $data = $request->all();
-        
-        // 构建查询条件
+
+        // 閺嬪嫬缂撻弻銉嚄閺夆€叉
         $query = Message::where('type', $data['type']);
-        
-        // 基础条件：面向所有用户的消息
+
+        // 閸╄櫣顢呴弶鈥叉閿涙岸娼伴崥鎴炲閺堝鏁ら幋椋庢畱濞戝牊浼?
         $query->where(function($q) {
             $q->where('user_id', 0)
               ->where('vip_id', 0)
               ->where('isagent', 0);
         });
-        
-        // 如果是代理用户，可以看到代理消息
+
+        // 婵″倹鐏夐弰顖欏敩閻炲棛鏁ら幋鍑ょ礉閸欘垯浜掗惇瀣煂娴狅絿鎮婂☉鍫熶紖
         if ($user->isagent == 1) {
             $query->orWhere('isagent', 1);
         }
-        
-        // 可以看到对应VIP等级的消息（排除VIP黑名单消息）
+
+        // 閸欘垯浜掗惇瀣煂鐎电懓绨睼IP缁涘楠囬惃鍕Х閹垽绱欓幒鎺楁珟VIP姒涙垵鎮曢崡鏇熺Х閹垽绱?
         $query->orWhere(function($q) use ($user) {
             $q->where('vip_id', $user->vip)
               ->where('isagent', '!=', 2);
         });
-        
-        // 可以看到专门发给自己的消息
-        $query->orWhere('user_id', $user->id);
-        
+
+        // 閸欘垯浜掗惇瀣煂娑撴捇妫崣鎴犵舶閼奉亜绻侀惃鍕Х閹?        $query->orWhere('user_id', $user->id);
+
         $list = $query->paginate(10);
         foreach ($list as $k => &$v) {
             $user_message = UserMessage::where('message_id', $v->id)->count();
             $v->is_read = $user_message ?? 0;
             $v->desc = mb_substr(strip_tags($v->content),0,20,'utf-8');
-        }        
-       
+        }
+
        return $this->returnMsg(200, $list);
-    }  
-    
+    }
+
     public function  message(Request $request){
      $token = $request->header('authorization');
      $token = str_replace('Bearer ','',$token) ;
-            $user = User::where('api_token',$token)->first(); 
-        
+            $user = User::where('api_token',$token)->first();
+
         $data = $request->all();
-        
-        // 构建查询条件
+
+        // 閺嬪嫬缂撻弻銉嚄閺夆€叉
         $query = Message::where('id', $data['id']);
-        
-        // 基础条件：面向所有用户的消息
+
+        // 閸╄櫣顢呴弶鈥叉閿涙岸娼伴崥鎴炲閺堝鏁ら幋椋庢畱濞戝牊浼?
         $query->where(function($q) {
             $q->where('user_id', 0)
               ->where('vip_id', 0)
               ->where('isagent', 0);
         });
-        
-        // 如果是代理用户，可以看到代理消息
+
+        // 婵″倹鐏夐弰顖欏敩閻炲棛鏁ら幋鍑ょ礉閸欘垯浜掗惇瀣煂娴狅絿鎮婂☉鍫熶紖
         if ($user->isagent == 1) {
             $query->orWhere('isagent', 1);
         }
-        
-        // 可以看到对应VIP等级的消息（排除VIP黑名单消息）
+
+        // 閸欘垯浜掗惇瀣煂鐎电懓绨睼IP缁涘楠囬惃鍕Х閹垽绱欓幒鎺楁珟VIP姒涙垵鎮曢崡鏇熺Х閹垽绱?
         $query->orWhere(function($q) use ($user) {
             $q->where('vip_id', $user->vip)
               ->where('isagent', '!=', 2);
         });
-        
-        // 可以看到专门发给自己的消息
-        $query->orWhere('user_id', $user->id);
-        
+
+        // 閸欘垯浜掗惇瀣煂娑撴捇妫崣鎴犵舶閼奉亜绻侀惃鍕Х閹?        $query->orWhere('user_id', $user->id);
+
         $list = $query->first();
-               
-       
+
+
        return $this->returnMsg(200, $list);
-    }   
+    }
 
     private function firstConfiguredUrl($value)
     {
@@ -2059,6 +2098,10 @@ class IndexController extends Controller
 
         if (preg_match('/^https?:\/\//i', $path)) {
             return $path;
+        }
+
+        if (strpos($path, '/assets/') === 0) {
+            return rtrim(env('APP_URL'), '/') . $path;
         }
 
         return rtrim(env('APP_URL'), '/') . '/uploads/' . ltrim($path, '/');
@@ -2088,6 +2131,179 @@ class IndexController extends Controller
         return array_values(array_intersect($columns, $existing));
     }
 
+    private function promotionVisibleActivities(Request $request, $type = '')
+    {
+        $columns = $this->selectExistingColumns('activities', [
+            'id',
+            'title',
+            'type',
+            'entitle',
+            'content',
+            'encontent',
+            'memo',
+            'enmemo',
+            'apply_count',
+            'banner',
+            'app_img',
+            'can_apply',
+            'state',
+            'app_state',
+            'sort_order',
+            'starts_at',
+            'ends_at',
+            'is_popup',
+            'popup_frequency',
+            'popup_delay_seconds',
+            'popup_image',
+            'app_popup_image',
+            'detail_image',
+            'app_detail_image',
+            'action_url',
+            'button_text',
+            'requires_auth',
+            'created_at',
+        ]);
+
+        $query = Activity::with('type_data')->select($columns ?: ['*']);
+        if ((int) $type > 0) {
+            $query->where('type', (int) $type);
+        }
+
+        return (new PromotionService())->visible($query->get()->all(), $this->promotionChannel($request));
+    }
+
+    private function legacyPromotionPayload(Activity $activity, $channel, $full = false)
+    {
+        $banner = $channel === 'mobile'
+            ? (($activity->app_img ?? '') ?: ($activity->banner ?? ''))
+            : (($activity->banner ?? '') ?: ($activity->app_img ?? ''));
+        $popupImage = $channel === 'mobile'
+            ? (($activity->app_popup_image ?? '') ?: ($activity->popup_image ?? '') ?: $banner)
+            : (($activity->popup_image ?? '') ?: ($activity->app_popup_image ?? '') ?: $banner);
+        $detailImage = $channel === 'mobile'
+            ? (($activity->app_detail_image ?? '') ?: ($activity->detail_image ?? '') ?: $banner)
+            : (($activity->detail_image ?? '') ?: ($activity->app_detail_image ?? '') ?: $banner);
+        $typeName = $activity->type_data ? (string) ($activity->type_data->name ?? '') : '';
+        $title = $this->promotionDisplayText($activity->entitle ?? '', $activity->title ?? '');
+        $content = $this->promotionDisplayText($activity->encontent ?? '', $activity->content ?? '');
+        $memo = $this->promotionDisplayText($activity->enmemo ?? '', $activity->memo ?? '');
+
+        $row = [
+            'id' => (int) ($activity->id ?? 0),
+            'title' => $title,
+            'entitle' => (string) ($activity->entitle ?? ''),
+            'type' => (int) ($activity->type ?? 0),
+            'type_name' => $typeName,
+            'content' => $full ? $content : '',
+            'memo' => $memo,
+            'enmemo' => (string) ($activity->enmemo ?? ''),
+            'apply_count' => (int) ($activity->apply_count ?? 0),
+            'banner' => $this->formatUploadUrl($banner),
+            'app_img' => $this->formatUploadUrl($activity->app_img ?? ''),
+            'popup_image' => $this->formatUploadUrl($popupImage),
+            'app_popup_image' => $this->formatUploadUrl($activity->app_popup_image ?? ''),
+            'detail_image' => $this->formatUploadUrl($detailImage),
+            'app_detail_image' => $this->formatUploadUrl($activity->app_detail_image ?? ''),
+            'button_text' => $this->promotionButtonText($activity),
+            'can_apply' => (int) ($activity->can_apply ?? 0),
+            'requires_auth' => (int) ($activity->requires_auth ?? 0),
+            'action_url' => (string) ($activity->action_url ?? ''),
+            'is_popup' => (int) ($activity->is_popup ?? 0),
+            'popup_frequency' => (string) (($activity->popup_frequency ?? '') ?: 'once'),
+            'popup_delay_seconds' => (int) ($activity->popup_delay_seconds ?? 0),
+            'sort_order' => (int) ($activity->sort_order ?? 0),
+            'starts_at' => isset($activity->starts_at) ? (string) $activity->starts_at : '',
+            'ends_at' => isset($activity->ends_at) ? (string) $activity->ends_at : '',
+            'state' => (int) ($activity->state ?? 0),
+            'app_state' => (int) ($activity->app_state ?? 0),
+            'created_at' => isset($activity->created_at) ? (string) $activity->created_at : '',
+        ];
+
+        return $row;
+    }
+
+    private function legacyPromotionFallback($id)
+    {
+        return [
+            'id' => (int) $id,
+            'title' => '',
+            'entitle' => '',
+            'type' => 0,
+            'type_name' => '',
+            'content' => '',
+            'memo' => '',
+            'enmemo' => '',
+            'apply_count' => 0,
+            'banner' => '',
+            'app_img' => '',
+            'popup_image' => '',
+            'app_popup_image' => '',
+            'detail_image' => '',
+            'app_detail_image' => '',
+            'button_text' => '',
+            'can_apply' => 0,
+            'requires_auth' => 0,
+            'action_url' => '',
+            'is_popup' => 0,
+            'popup_frequency' => 'once',
+            'popup_delay_seconds' => 0,
+            'sort_order' => 0,
+            'starts_at' => '',
+            'ends_at' => '',
+            'state' => 0,
+            'app_state' => 0,
+        ];
+    }
+
+    private function promotionChannel(Request $request)
+    {
+        $channel = strtolower((string) $request->input('channel', ''));
+        if (in_array($channel, ['mobile', 'app', 'h5'], true)) {
+            return 'mobile';
+        }
+        if (in_array($channel, ['desktop', 'pc', 'web'], true)) {
+            return 'desktop';
+        }
+
+        return preg_match('/Mobile|Android|iPhone|iPad|iPod/i', (string) $request->header('User-Agent'))
+            ? 'mobile'
+            : 'desktop';
+    }
+
+    private function promotionButtonText(Activity $activity)
+    {
+        if ($this->hasColumn('activities', 'button_text')) {
+            $configured = trim((string) ($activity->button_text ?? ''));
+            if ($configured !== '') {
+                return $configured;
+            }
+        }
+
+        $url = trim((string) ($activity->action_url ?? ''));
+        if ($url !== '') {
+            if (stripos($url, 'recharge') !== false || stripos($url, 'deposit') !== false) {
+                return 'เติมเงินทันที';
+            }
+            if (stripos($url, 'support') !== false || stripos($url, 'service') !== false) {
+                return 'ติดต่อฝ่ายบริการ';
+            }
+
+            return 'ดูรายละเอียด';
+        }
+
+        return (int) ($activity->can_apply ?? 0) === 1 ? 'รับโปรโมชั่น' : 'ดูรายละเอียด';
+    }
+
+    private function promotionDisplayText($primary, $fallback)
+    {
+        $primary = trim((string) $primary);
+        if ($primary !== '') {
+            return $primary;
+        }
+
+        return trim((string) $fallback);
+    }
+
     private function formatUploadUrl($path)
     {
         $path = trim((string) $path);
@@ -2097,6 +2313,10 @@ class IndexController extends Controller
 
         if (preg_match('/^https?:\/\//i', $path)) {
             return $path;
+        }
+
+        if (strpos($path, '/assets/') === 0) {
+            return rtrim(env('APP_URL'), '/') . $path;
         }
 
         return rtrim(env('APP_URL'), '/') . '/uploads/' . ltrim($path, '/');
@@ -2110,6 +2330,16 @@ class IndexController extends Controller
         }
 
         return User::where('api_token', $token)->first();
+    }
+
+    private function requestPlayerLevel(Request $request)
+    {
+        $user = $this->apiUser($request);
+        if (!$user) {
+            return 0;
+        }
+
+        return max((int) ($user->vip ?? 0), (int) ($user->level ?? 0));
     }
 
     public function app()
@@ -2128,7 +2358,7 @@ class IndexController extends Controller
         $sponsor_page_url_1 = SystemConfig::getValue('sponsor_page_url_1');
         $sponsor_page_url_2 = SystemConfig::getValue('sponsor_page_url_2');
         $agent_url = $this->agentPublicUrl();
-        $servicePayload = $this->customerServicePayload();
+        $servicePayload = $this->customerServicePayload($this->requestPlayerLevel(request()));
         $kf_url = $servicePayload['kf_url'];
         $url = $servicePayload['url'];
         $service_url = $servicePayload['service_url'];
@@ -2150,7 +2380,7 @@ class IndexController extends Controller
         $stream_config_url = $servicePayload['stream_config_url'];
         $stream_token_url = $servicePayload['stream_token_url'];
         $stream_channel_url = $servicePayload['stream_channel_url'];
-        $title = SystemConfig::getValue('site_title') ?? 'TG娱乐城';
+        $title = SystemConfig::getValue('site_title') ?? 'TH2.VIP';
         $redpacket_switch = SystemConfig::getValue('redpacket');
         $site_state = SystemConfig::getValue('site_state');
         $fanshui = SystemConfig::getValue('fanshui');
@@ -2166,17 +2396,17 @@ class IndexController extends Controller
         $vip_rule_title_img = $this->uploadUrl(SystemConfig::getValue('vip_rule_title_img'));
         return $this->returnMsg(200,compact('ios_download_qrcode','ios_download_url','h5_url','wap_url','pc_url','app_url','agent_login_url','official_domain','navigation_domains','asset_domain','sponsor_page_url_1','sponsor_page_url_2','agent_url','url','kf_url','service_url','service_link','customer_service_url','online_service_url','service_type','customer_service_configured','link_configured','work_order_enabled','work_order_page_url','work_order_list_url','work_order_create_url','work_order_detail_url','work_order_reply_url','work_order_close_url','ws_enabled','stream_chat','stream_config_url','stream_token_url','stream_channel_url','title','redpacket_switch','site_state','fanshui','index_modal','repair_tips','webcontent','site_logo','app_logo','download_bar_icon','login_bonus_img','vip_rule_title_img'));
     }
-    
-    
+
+
     public function applyagentdo(Request $request)
     {
         $data = $request->all();
         $token = $request->header('authorization');
         $token = str_replace('Bearer ','',$token) ;
-        $user = User::where('api_token',$token)->first(); 
-        
+        $user = User::where('api_token',$token)->first();
+
         $useragent = AgentApply::where('user_id',$user->id)->first();
-         if ($useragent)return $this->returnMsg(500, '', '您已申请过代理'); 
+         if ($useragent)return $this->returnMsg(500, '', 'Agent application already submitted');
 
             $arr = [
                 'user_id' => $user->id,
@@ -2185,17 +2415,16 @@ class IndexController extends Controller
                 'mobile' => $data['mobile'],
             ];
         if($res = AgentApply::create($arr)){
-          return $this->returnMsg(200, '', '申请成功');
+          return $this->returnMsg(200, '', 'success');
         }else{
-            return $this->returnMsg(500, '', '申请失败');
         }
-    } 
-    
+    }
+
     public function getAgentLoginUrl()
     {
         return $this->returnMsg(200, ['url' => $this->agentLoginPublicUrl()]);
     }
-    
+
     public function getVisitUrl(Request $request) {
         $origin = $request->headers->get('origin') ?: $request->getSchemeAndHttpHost();
         if($this->isMobile()){
@@ -2206,7 +2435,7 @@ class IndexController extends Controller
 		}else{
 			return $this->returnMsg(200, ['url' => $wapurl[0]]);
 		}
-           
+
         } else {
             $url = env("PC_URL");
 		$weburl = explode(',', $url);
@@ -2217,9 +2446,9 @@ class IndexController extends Controller
 		}
         }
     }
-    
+
     /**
-     * 获取代理推广信息
+     * 閼惧嘲褰囨禒锝囨倞閹恒劌绠嶆穱鈩冧紖
      *
      * @return void
      */
@@ -2229,15 +2458,14 @@ class IndexController extends Controller
         $token = str_replace('Bearer ','',$token);
         $user = User::where('api_token',$token)->first();
         if (!$user) {
-            return $this->returnMsg(401, '用户未登录');
+            return $this->returnMsg(401, '', 'Authentication required');
         }
-        
+
         $pcUrl = $this->invitePublicUrl(SystemConfig::getValue('agent_pc_uri') ?: env('PC_URL'), $user->id);
         $wapUrl = $this->invitePublicUrl(SystemConfig::getValue('agent_wap_uri') ?: env('WAP_URL'), $user->id);
-        
-        // 生成二维码路径
-        $qrcodePath = '/uploads/agent/qrcode/' . $user->id . '.png';
-        
+
+        // 閻㈢喐鍨氭禍宀€娣惍浣界熅瀵?        $qrcodePath = '/uploads/agent/qrcode/' . $user->id . '.png';
+
         return $this->returnMsg(200, [
             'pc_url' => $pcUrl,
             'wap_url' => $wapUrl,
@@ -2250,19 +2478,19 @@ class IndexController extends Controller
             'qrcode' => $this->appPublicUrl() . $qrcodePath
         ]);
     }
-    
+
     public function getApiUrl()
     {
         return $this->returnMsg(200, env('API_URL'));
     }
-    
+
     public function getAllPlat()
     {
         $vaild_plat = GameList::where('app_state',1)->where('is_top',1)->select('platform_name')->distinct()->pluck('platform_name')->toArray();
         $res = array_unique($vaild_plat);
         return $this->returnMsg(200,$res);
     }
-    
+
     public function getAllGameList(Request $request)
     {
         $platform = $request->input('platform_name') ?? ($request->input('platform') ?? '');
@@ -2314,15 +2542,15 @@ class IndexController extends Controller
 		}
         $listarray = array_merge($listarray);
         return $this->returnMsg(200,$listarray);
-    }   
+    }
     public function getAppUrl()
     {
         $url = env('APP_URL');
         return $this->returnMsg(200,compact('url'));
     }
-    
+
     /**
-     * 获取 Stream Chat 配置
+     * Get Stream Chat configuration.
      */
     public function getStreamConfig()
     {
@@ -2336,9 +2564,9 @@ class IndexController extends Controller
                 'provider' => 'work_order',
                 'fallback_url' => $workOrderUrl,
                 'work_order_enabled' => true,
-            ], '工单客服已启用');
+            ], 'Live chat is unavailable, using work order support');
         }
-        
+
         return $this->returnMsg(200, [
             'enabled' => true,
             'api_key' => $apiKey,
@@ -2347,112 +2575,107 @@ class IndexController extends Controller
             'channel_type' => 'messaging'
         ]);
     }
+
     /**
-     * 生成 Stream Chat Token
+     * Get Stream Chat token.
      */
     public function getStreamToken(Request $request)
     {
         $user = $this->activeUserFromBearer($request);
         if (!$user) {
-            return $this->returnMsg(401, null, '未授权');
+            return $this->returnMsg(401, null, 'Authentication required');
         }
-        
+
         $enabled = SystemConfig::getValue('stream_chat_enabled');
         if ($enabled != 1) {
-            return $this->returnMsg(403, null, '聊天室功能未启用');
+            return $this->returnMsg(403, null, 'Live chat is not enabled');
         }
-        
+
         $apiKey = SystemConfig::getValue('stream_chat_api_key');
         $secret = SystemConfig::getValue('stream_chat_secret');
-        
+
         if (empty($apiKey) || empty($secret)) {
-            return $this->returnMsg(500, null, 'Stream Chat 配置不完整');
+            return $this->returnMsg(500, null, 'Stream Chat configuration is incomplete');
         }
-        
+
         $userId = $user->id;
-        $username = $user->username;
-        
-        // 生成 JWT Token
         $jwtToken = $this->generateStreamToken($userId, $apiKey, $secret);
-        
+
         if (!$jwtToken) {
-            return $this->returnMsg(500, null, '生成 Token 失败');
+            return $this->returnMsg(500, null, 'Token generation failed');
         }
-        
+
         return $this->returnMsg(200, [
             'token' => $jwtToken,
             'user_id' => $userId,
         ]);
     }
-    
+
     /**
-     * 生成 Stream Chat JWT Token
+     * Generate Stream Chat JWT token.
      */
     private function generateStreamToken($userId, $apiKey, $secret)
     {
         try {
-            // Stream Chat Token 格式: HS256 JWT
             $header = [
                 'typ' => 'JWT',
                 'alg' => 'HS256',
             ];
-            
+
             $now = time();
             $payload = [
                 'user_id' => (string)$userId,
                 'iat' => $now,
-                'exp' => $now + (60 * 60 * 24), // 24小时过期
+                'exp' => $now + (60 * 60 * 24),
             ];
-            
-            // 手动生成 JWT
+
             $base64Header = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode(json_encode($header)));
             $base64Payload = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode(json_encode($payload)));
-            
+
             $signature = hash_hmac('sha256', $base64Header . '.' . $base64Payload, $secret, true);
             $base64Signature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
-            
+
             return $base64Header . '.' . $base64Payload . '.' . $base64Signature;
         } catch (\Exception $e) {
-            \Log::error('生成 Stream Token 失败: ' . $e->getMessage());
+            \Log::error('Stream token generation failed: ' . $e->getMessage());
             return null;
         }
     }
-    
+
     /**
-     * 创建或获取 Stream Chat 频道（服务器端）
+     * Create or join a Stream Chat channel.
      */
     public function createStreamChannel(Request $request)
     {
         $user = $this->activeUserFromBearer($request);
         if (!$user) {
-            return $this->returnMsg(401, null, '未授权');
+            return $this->returnMsg(401, null, 'Authentication required');
         }
-        
+
         $enabled = SystemConfig::getValue('stream_chat_enabled');
         if ($enabled != 1) {
-            return $this->returnMsg(403, null, '聊天室功能未启用');
+            return $this->returnMsg(403, null, 'Live chat is not enabled');
         }
-        
+
         $apiKey = SystemConfig::getValue('stream_chat_api_key');
         $secret = SystemConfig::getValue('stream_chat_secret');
-        
+
         if (empty($apiKey) || empty($secret)) {
-            return $this->returnMsg(500, null, 'Stream Chat 配置不完整');
+            return $this->returnMsg(500, null, 'Stream Chat configuration is incomplete');
         }
-        
-        $channelType = $request->input('channel_type', 'livestream'); // 默认使用 livestream
+
+        $channelType = $request->input('channel_type', 'livestream');
         $channelId = $request->input('channel_id', 'general');
         $userId = $user->id;
-        
+
         try {
-            // 使用 curl 调用 Stream Chat 服务器端 API 创建频道
             $url = "https://chat.stream-io-api.com/channels/{$channelType}/{$channelId}";
-            
+
             $data = json_encode([
                 'members' => [(string)$userId],
                 'created_by_id' => (string)$userId,
             ]);
-            
+
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $url);
             curl_setopt($ch, CURLOPT_POST, true);
@@ -2463,39 +2686,33 @@ class IndexController extends Controller
                 'stream-auth-type: jwt',
                 'Content-Type: application/json',
             ]);
-            
+
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
-            
+
             if ($httpCode >= 200 && $httpCode < 300) {
-                // 频道创建成功或已存在
                 return $this->returnMsg(200, [
                     'channel_type' => $channelType,
                     'channel_id' => $channelId,
                 ]);
-            } else {
-                // 频道可能已存在，这也是可以的
-                if ($httpCode == 400) {
-                    return $this->returnMsg(200, [
-                        'channel_type' => $channelType,
-                        'channel_id' => $channelId,
-                    ]);
-                }
-                \Log::warning('创建 Stream 频道返回状态码: ' . $httpCode . ', 响应: ' . $response);
-                return $this->returnMsg(500, null, '创建 Stream 频道失败');
             }
+
+            if ($httpCode == 400) {
+                return $this->returnMsg(200, [
+                    'channel_type' => $channelType,
+                    'channel_id' => $channelId,
+                ]);
+            }
+
+            \Log::warning('Create Stream channel failed, HTTP status: ' . $httpCode . ', response: ' . $response);
+            return $this->returnMsg(500, null, 'Create Stream channel failed');
         } catch (\Exception $e) {
-            \Log::error('创建 Stream 频道失败: ' . $e->getMessage());
-            return $this->returnMsg(500, null, '创建 Stream 频道失败');
+            \Log::error('Create Stream channel failed: ' . $e->getMessage());
+            return $this->returnMsg(500, null, 'Create Stream channel failed');
         }
     }
-    
-    /**
-     * 获取代理后台地址
-     *
-     * @return void
-     */
+
     public function getAgentUrl()
     {
         $agentUrl = $this->agentPublicUrl();
@@ -2505,16 +2722,16 @@ class IndexController extends Controller
             'agent_login_url' => $this->agentLoginPublicUrl(),
         ]);
     }
-    
+
     /**
-     * 自动登录代理后台
+     * 閼奉亜濮╅惂璇茬秿娴狅絿鎮婇崥搴″酱
      *
      * @param Request $request
      * @return void
      */
     public function autoLogin(Request $request)
     {
-        return $this->returnMsg(403, '', '自动登录已关闭');
+        return $this->returnMsg(403, '', 'Auto login is disabled');
     }
-    
+
 }

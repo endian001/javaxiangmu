@@ -6,15 +6,14 @@ use Illuminate\Support\Facades\Schema;
 
 class CreateAgentFenxiangTable extends Migration
 {
-    /**
-     * Run the migrations.
-     *
-     * @return void
-     */
     public function up()
     {
+        if (Schema::hasTable('agent_fenxiang')) {
+            return;
+        }
+
         Schema::create('agent_fenxiang', function (Blueprint $table) {
-            $table->id();
+            $table->bigIncrements('id');
             $table->string('title', 100)->comment('分享标题');
             $table->string('description', 255)->comment('分享描述');
             $table->string('share_type', 50)->comment('分享类型');
@@ -25,11 +24,6 @@ class CreateAgentFenxiangTable extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     *
-     * @return void
-     */
     public function down()
     {
         Schema::dropIfExists('agent_fenxiang');

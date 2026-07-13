@@ -15,7 +15,7 @@ class PlatformSettingsViewTest extends TestCase
         return file_get_contents($path);
     }
 
-    public function test_it_renders_six_independent_configuration_tabs()
+    public function test_it_renders_seven_independent_configuration_tabs()
     {
         $view = $this->viewContents();
 
@@ -26,6 +26,7 @@ class PlatformSettingsViewTest extends TestCase
             '前台显示样式',
             'APP 打包',
             'APP 下载设置',
+            'WXGAME',
         ] as $label) {
             $this->assertStringContainsString($label, $view);
         }

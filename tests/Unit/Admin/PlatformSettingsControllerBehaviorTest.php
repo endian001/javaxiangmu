@@ -52,7 +52,7 @@ class PlatformSettingsControllerBehaviorTest extends TestCase
         $createRequest = Request::create('/game/tcg/platform-customer-services', 'POST', [
             'service_type' => 'custom',
             'display_name' => 'Controller behavior test',
-            'service_url' => 'https://example.com/support',
+            'service_url' => 'https://t.me/wakuang_support',
             'position' => 12,
             'min_player_level' => 3,
             'status' => 1,
@@ -94,6 +94,28 @@ class PlatformSettingsControllerBehaviorTest extends TestCase
             'platform.customer_service.create',
             'platform.customer_service.delete',
         ], DB::table('admin_audit_logs')->orderBy('id')->pluck('action')->all());
+    }
+
+    public function test_customer_service_rejects_urls_that_public_api_would_hide()
+    {
+        $controller = $this->controller();
+        $request = Request::create('/game/tcg/platform-customer-services', 'POST', [
+            'service_type' => 'custom',
+            'display_name' => 'Unsafe link',
+            'service_url' => 'javascript:alert(1)',
+            'position' => 1,
+            'min_player_level' => 0,
+            'status' => 1,
+        ], [], [], [
+            'REMOTE_ADDR' => '127.0.0.1',
+            'HTTP_USER_AGENT' => 'PHPUnit',
+        ]);
+        $this->app->instance('request', $request);
+
+        $response = $controller->saveCustomerService($request);
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame(0, DB::table('platform_customer_services')->count());
     }
 
     public function test_app_build_request_creates_a_real_pending_queue_record()

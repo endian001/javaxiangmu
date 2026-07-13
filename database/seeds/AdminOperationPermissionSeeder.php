@@ -26,6 +26,15 @@ class AdminOperationPermissionSeeder extends Seeder
     protected function permissions()
     {
         return [
+            ['slug' => OperationPermission::FINANCE_RECHARGE_PASS, 'name' => 'Finance recharge approve'],
+            ['slug' => OperationPermission::FINANCE_RECHARGE_REFUSE, 'name' => 'Finance recharge refuse'],
+            ['slug' => OperationPermission::FINANCE_WITHDRAW_PASS, 'name' => 'Finance withdraw approve'],
+            ['slug' => OperationPermission::FINANCE_WITHDRAW_REFUSE, 'name' => 'Finance withdraw refuse'],
+            ['slug' => OperationPermission::MEMBER_BALANCE_ADJUST, 'name' => 'Member balance adjust'],
+            ['slug' => OperationPermission::MEMBER_BALANCE_RECOVER, 'name' => 'Member game balance recover'],
+            ['slug' => OperationPermission::AGENT_COMMISSION_SETTLE, 'name' => 'Agent commission settle'],
+            ['slug' => OperationPermission::AGENT_APPLY_AUDIT, 'name' => 'Agent apply audit'],
+            ['slug' => OperationPermission::ACTIVITY_APPLY_AUDIT, 'name' => 'Activity apply audit'],
             ['slug' => OperationPermission::MEMBER_PASSWORD_RESET, 'name' => 'Member password reset'],
             ['slug' => OperationPermission::MEMBER_AGENT_UPDATE, 'name' => 'Member agent update'],
             ['slug' => OperationPermission::MEMBER_STATUS_UPDATE, 'name' => 'Member status update'],

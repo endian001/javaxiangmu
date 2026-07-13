@@ -27,10 +27,12 @@ use App\Models\Article;
 use App\Models\UserVip;
 use App\Models\Banner;
 use App\Models\CodePay;
+use App\Models\UsdtPay;
 use App\Models\GameRecord;
 use App\Models\AgentApply;
 use App\Models\GameList;
 use App\Models\GameListApp;
+use App\Services\PromotionService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Support\Arr;
@@ -80,6 +82,21 @@ class AppController extends Controller
         return (int) ($user->status ?? 0) <= 0
             || (int) ($user->isdel ?? 0) === 1
             || (int) ($user->isblack ?? 0) === 1;
+    }
+
+    private function requestPlayerLevel(Request $request)
+    {
+        $token = $request->input('lastsession', '');
+        if ($token === '') {
+            $token = trim(preg_replace('/^Bearer\s+/i', '', (string) $request->header('authorization', '')));
+        }
+
+        $user = $this->activeUserFromApiToken($token);
+        if (!$user) {
+            return 0;
+        }
+
+        return max((int)($user->vip ?? 0), (int)($user->level ?? 0));
     }
 
     public function pay_list()
@@ -183,7 +200,7 @@ class AppController extends Controller
 		$datas['real_money'] = $datas['amount'];
 		$datas['usdt_rate'] = 0;
 		$datas['state'] = 1;
-		$pay = $this->PayService->cgpay($datas['out_trade_no'],$datas['amount']);
+		$pay = $this->PayService->cgpay($datas['out_trade_no'], $datas['amount'], $CodePay);
 		if(!$pay){
 			return $this->returnMsg(201,'','网络错误');
 		}
@@ -247,13 +264,13 @@ class AppController extends Controller
 		if($data['pay_id'] == ''){
 			return $this->returnMsg(201,'','通道未开启，请切换其他充值方式');
 		}		
-		$CodePay = CodePay::where('status',1)->where('id',$data['pay_id'])->first();
-		if(!$CodePay){
+		$UsdtPay = UsdtPay::where('status',1)->where('id',$data['pay_id'])->first();
+		if(!$UsdtPay){
 			return $this->returnMsg(201,'','入款方式不存在,请重试或联系客服');
 		}
 		$money = (float)$data['money'];
-		$cz_min = $CodePay->min_price;
-		$cz_max = $CodePay->max_price;
+		$cz_min = $UsdtPay->min_price;
+		$cz_max = $UsdtPay->max_price;
 		if($money < $cz_min || $money > $cz_max){
 			return $this->returnMsg(201,'','单笔充值金额限制'.$cz_min.'元-'.$cz_max.'元');
 		}	
@@ -261,10 +278,10 @@ class AppController extends Controller
         $datas['out_trade_no'] = $out_trade_no;
         $datas['user_id'] = $user->id;		
 		$datas['amount'] = $money;
-		$datas['pay_way'] = $CodePay->id;
+		$datas['pay_way'] = $UsdtPay->id;
 		$datas['cash_fee'] = 0;
 		$datas['real_money'] = $datas['amount'];
-		$datas['usdt_rate'] = SystemConfig::getValue('usdt_rate');  //USDT汇率
+		$datas['usdt_rate'] = $UsdtPay->exchange_rate ?: SystemConfig::getValue('usdt_rate');
 		$datas['state'] = 1;
 		
 		$res = Recharge::create($datas);
@@ -530,28 +547,79 @@ class AppController extends Controller
 	
     public function post_drawing(Request $request)
     {
-		$data = $request->all();
-		$user = User::where('api_token',$data['lastsession'])->first(); 
-		if(!$user){
-			return $this->returnMsg(201,'','登陆信息已过期');
-		}
-		if(!is_numeric($data['money'])){
-			return $this->returnMsg(201,'','金额输入错误');
-		}
-        $data['money'] = round((float) $data['money'], 2);
-        if ($data['money'] <= 0) {
+        $data = $request->all();
+        $token = $data['lastsession'] ?? trim(preg_replace('/^Bearer\s+/i', '', (string) $request->header('authorization', '')));
+        $user = $this->activeUserFromApiToken($token);
+        if (!$user) {
+            return $this->returnMsg(201, '', 'login expired');
+        }
+
+        if (!isset($data['money']) || !is_numeric($data['money'])) {
             return $this->returnMsg(201, '', 'invalid amount');
         }
-		if(!$data['bankid']){
-			return $this->returnMsg(201,'','请选择提款方式');
-		}		
-		$tk_min = SystemConfig::getValue('min_withdraw_money');
-		$tk_max = SystemConfig::getValue('max_withdraw_money');
-		if($data['money'] < $tk_min || $data['money'] > $tk_max){
-			return $this->returnMsg(201,'','单笔提款金额限制'.$tk_min.'元-'.$tk_max.'元');
-		}		
+        $amount = round((float) $data['money'], 2);
+        if ($amount <= 0) {
+            return $this->returnMsg(201, '', 'invalid amount');
+        }
 
-		$tg = new TgService;
+        $bankId = (int)($data['bankid'] ?? 0);
+        if ($bankId <= 0) {
+            return $this->returnMsg(201, '', 'withdraw card required');
+        }
+
+        $dailyWithdrawTimes = (int) SystemConfig::getValue('daily_withdraw_times');
+        if ($dailyWithdrawTimes > 0) {
+            $todayCount = Withdraw::where('user_id', $user->id)->whereDate('created_at', date('Y-m-d'))->count();
+            if ($todayCount >= $dailyWithdrawTimes) {
+                return $this->returnMsg(216, '', 'daily withdraw limit reached');
+            }
+        }
+
+        $date = date('Y-m-d');
+        $withdrawBeginTime = SystemConfig::getValue('withdraw_begin_time');
+        if ($withdrawBeginTime && time() < strtotime($date.' '.$withdrawBeginTime)) {
+            return $this->returnMsg(218, '', 'withdraw time not started');
+        }
+        $withdrawEndTime = SystemConfig::getValue('withdraw_end_time');
+        if ($withdrawEndTime && time() > strtotime($date.' '.$withdrawEndTime)) {
+            return $this->returnMsg(219, '', 'withdraw time ended');
+        }
+
+        $lastApprovedWithdraw = Withdraw::where('user_id', $user->id)->where('state', 2)->orderBy('id', 'desc')->first();
+        if ($lastApprovedWithdraw) {
+            $rechargeAmount = Recharge::where('user_id', $user->id)->where('state', 2)->where('created_at', '>=', $lastApprovedWithdraw->created_at)->sum('amount');
+            $betAmount = GameRecord::where('user_id', $user->id)->where('created_at', '>=', $lastApprovedWithdraw->created_at)->sum('valid_amount');
+        } else {
+            $rechargeAmount = Recharge::where('user_id', $user->id)->where('state', 2)->sum('amount');
+            $betAmount = GameRecord::where('user_id', $user->id)->sum('valid_amount');
+        }
+
+        $turnoverRate = (float) SystemConfig::getValue('withdraw_fee');
+        if ($turnoverRate > 0 && $rechargeAmount > 0 && ($betAmount / $rechargeAmount) < $turnoverRate) {
+            return $this->returnMsg(214, '', 'turnover requirement not met');
+        }
+
+        $minWithdraw = (float) SystemConfig::getValue('min_withdraw_money');
+        if ($minWithdraw > 0 && $amount < $minWithdraw) {
+            return $this->returnMsg(201, '', 'min withdraw amount '.$minWithdraw);
+        }
+        $maxWithdraw = (float) SystemConfig::getValue('max_withdraw_money');
+        if ($maxWithdraw > 0 && $amount > $maxWithdraw) {
+            return $this->returnMsg(201, '', 'max withdraw amount '.$maxWithdraw);
+        }
+
+        $password = (string)($data['password'] ?? ($data['qk_pwd'] ?? ($data['paypwd'] ?? '')));
+        if ($password === '') {
+            return $this->returnMsg(520, '', 'withdraw password required');
+        }
+        if (empty($user->paypwd)) {
+            return $this->returnMsg(520, '', 'withdraw password not set');
+        }
+        if (!Hash::check($password, $user->paypwd)) {
+            return $this->returnMsg(520, '', 'withdraw password incorrect');
+        }
+
+        $tg = new TgService;
         $transferService = new SafeGameTransferService();
         $sweepResult = $transferService->moveLastPlatformBalanceToAccount($user, $tg, 'app_withdraw');
         if (($sweepResult['code'] ?? 201) != 200) {
@@ -562,39 +630,58 @@ class AppController extends Controller
             return $this->returnMsg(201, '', 'login expired');
         }
 		
-        $card = UserCard::where('id', $data['bankid'])->where('user_id', $user->id)->first();
+        $card = UserCard::where('id', $bankId)->where('user_id', $user->id)->first();
         if (!$card) {
             return $this->returnMsg(201, '', 'withdraw card not found');
         }
 
         $order_no = time().rand(1000,9999);
         $type = 1;
-        if ($card['bank_owner'] == 'TRC20') {
+        $cashFee = 0;
+        $realMoney = $amount;
+        $usdtRate = (float) SystemConfig::getValue('withdraw_usdt_rate');
+        if ($card['bank'] == 'USDT' && ($card['bank_address'] == 'TRC20' || $card['bank_owner'] == 'TRC20')) {
+            if ($usdtRate <= 0) {
+                return $this->returnMsg(500, '', 'system config missing');
+            }
             $type = 2;
-        }
-        if ($card['bank_owner'] == 'ERC20') {
+            $cashFee = (float) (SystemConfig::getValue('withdraw_cash_fee') ?? 0);
+            $realMoney = round($amount / $usdtRate - $cashFee, 2);
+        } elseif ($card['bank'] == 'USDT' && ($card['bank_address'] == 'ERC20' || $card['bank_owner'] == 'ERC20')) {
+            if ($usdtRate <= 0) {
+                return $this->returnMsg(500, '', 'system config missing');
+            }
             $type = 3;
+            $cashFee = (float) (SystemConfig::getValue('withdraw_fee_usdt_erc') ?? 0);
+            $realMoney = round($amount / $usdtRate - $cashFee, 2);
+        } elseif ($card['bank'] == 'ebpay') {
+            $type = 4;
         }
 
-        $result = DB::transaction(function () use ($user, $data, $card, $order_no, $type) {
+        if ($realMoney <= 0) {
+            return $this->returnMsg(214, '', 'withdraw fee exceeds amount');
+        }
+
+        $result = DB::transaction(function () use ($user, $amount, $card, $order_no, $type, $cashFee, $realMoney, $usdtRate) {
             $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
             if (!$lockedUser) {
                 return ['code' => 201, 'message' => 'login expired'];
             }
-            if ($lockedUser->balance < $data['money']) {
+            if ($lockedUser->balance < $amount) {
                 return ['code' => 201, 'message' => 'insufficient balance'];
             }
 
-            $lockedUser->decrement('balance', $data['money']);
+            $lockedUser->balance -= $amount;
+            $lockedUser->save();
             $item = [
                 'order_no' => $order_no,
                 'type' => $type,
                 'card_id' => $card->id,
                 'user_id' => $lockedUser->id,
-                'amount' => $data['money'],
-                'cash_fee' => 0,
-                'real_money' => $data['money'],
-                'usdt_rate' => ($type == 1) ? 0 : SystemConfig::getValue('withdraw_usdt_rate')
+                'amount' => $amount,
+                'cash_fee' => $cashFee,
+                'real_money' => $realMoney,
+                'usdt_rate' => ($type == 1) ? 0 : $usdtRate
             ];
 
             return [
@@ -608,35 +695,6 @@ class AppController extends Controller
         }
 
         return $this->returnMsg(!empty($result['withdraw']) ? 200 : 500, '', !empty($result['withdraw']) ? 'withdraw submitted' : 'withdraw failed');
-
-		if($user->balance < $data['money']){
-			return $this->returnMsg(201,'','余额不足');
-		}
-		$card = UserCard::find($data['bankid']);
-		if(!$card){
-			return $this->returnMsg(201,'','提款方式不存在');
-		}
-		$user->decrement('balance',$data['money']);
-		$order_no = time().rand(1000,9999);
-		$type = 1;
-		if($card['bank_owner'] == 'TRC20'){
-			$type = 2;
-		}
-		if($card['bank_owner'] == 'ERC20'){
-			$type = 3;
-		}		
-        $item = [
-            'order_no' => $order_no,
-            'type' => $type,
-            'card_id' => $data['bankid'],
-            'user_id' => $user->id,
-            'amount' => $data['money'],
-            'cash_fee' => 0,
-            'real_money' => $data['money'],
-            'usdt_rate' => ($type == 1) ? 0 : SystemConfig::getValue('withdraw_usdt_rate')
-        ];
-        $res = Withdraw::create($item);
-        return $this->returnMsg($res ? 200 : 500,'',$res ? '提款成功' : '提款失败，请联系客服');		
 	}
     public function post_update_bank_info(Request $request)
     {
@@ -717,8 +775,17 @@ class AppController extends Controller
 		if(empty($activity)){
 			return $this->returnMsg(202, '', '活动不存在');
 		}
-        if ((int)($activity->state ?? 0) !== 1 || (int)($activity->app_state ?? 0) !== 1 || (int)($activity->can_apply ?? 0) !== 1) {
+        if (empty((new PromotionService())->visible([$activity], 'mobile')) || (int)($activity->can_apply ?? 0) !== 1) {
             return $this->returnMsg(202, '', 'activity can not apply');
+        }
+
+		if ($hit = $this->activityBlacklistHit($user, $activityId)) {
+			return $this->returnMsg(202, '', $this->activityBlacklistMessage($hit, 'activity can not apply'));
+		}
+
+        $couponCheck = $this->validateActivityCouponForApply($request, $user, $activityId);
+        if (!$couponCheck['ok']) {
+            return $this->returnMsg(202, '', $couponCheck['message']);
         }
 
 		$isapple = ActivityApply::where("user_id",$user->id)->where('activity_id',$activityId)->first();
@@ -739,7 +806,30 @@ class AppController extends Controller
 		$arr['state'] = 1;
 		$arr['created_at'] = date('Y-m-d H:i:s');
 		$arr['updated_at'] = date('Y-m-d H:i:s');
-		if(ActivityApply::create($arr)){
+		try {
+            $created = DB::transaction(function () use ($arr, $couponCheck, $user) {
+                $created = ActivityApply::create($arr);
+                if (!$this->markActivityCouponUsed($couponCheck['coupon'], $user)) {
+                    throw new \RuntimeException('activity coupon consume failed');
+                }
+
+                return $created;
+            });
+        } catch (\Throwable $e) {
+            if (stripos($e->getMessage(), 'Duplicate') !== false || stripos($e->getMessage(), 'activity_apply_activity_id_user_id_unique') !== false) {
+                return $this->returnMsg(202, '', 'activity application already submitted');
+            }
+
+            \Illuminate\Support\Facades\Log::error('app activity apply failed', [
+                'user_id' => $user->id,
+                'activity_id' => $activityId,
+                'message' => $e->getMessage(),
+            ]);
+
+            return $this->returnMsg(500, '', 'activity apply failed');
+        }
+
+		if($created){
 			return $this->returnMsg(200, '', '申请成功');
 		}else{
 			return $this->returnMsg(202, '', '申请失败');
@@ -747,38 +837,117 @@ class AppController extends Controller
 	}	
     public function activities(Request $request)
     {
-        $Activity = Activity::where('state',1)->where('app_state',1)->select("app_img","type","id","can_apply","content","memo")->get()->toArray();
-		foreach($Activity as $key => $value){
-            $appImg = trim((string)($value['app_img'] ?? ''));
-            if ($appImg === '') {
-                $Activity[$key]['app_img'] = '';
-            } elseif (preg_match('/^https?:\/\//i', $appImg)) {
-                $Activity[$key]['app_img'] = $appImg;
-            } else {
-			    $Activity[$key]['app_img'] = rtrim(env('APP_URL'), '/').'/uploads/'.ltrim($appImg, '/');
-            }
-			//活动类型：1真人,2捕鱼,3电子,4彩票,5体育,6棋牌,7电竞，99综合活动
-			if($value['type'] == 5){
-				$Activity[$key]['type'] = 6;
-			}else if($value['type'] == 6){
-				$Activity[$key]['type'] = 3;
-			}else if($value['type'] == 7){
-				$Activity[$key]['type'] = 4;
-			}else if($value['type'] == 8){
-				$Activity[$key]['type'] = 1;
-			}else if($value['type'] == 10){
-				$Activity[$key]['type'] = 5;
-			}else if($value['type'] == 11){
-				$Activity[$key]['type'] = 2;
-			}else if($value['type'] == 12){
-				$Activity[$key]['type'] = 7;
-			}else{
-				$Activity[$key]['type'] = 99;
-			}			
+        $Activity = [];
+        $visible = (new PromotionService())->visible(Activity::with('type_data')->get()->all(), 'mobile');
+		foreach($visible as $activity){
+            $Activity[] = $this->appPromotionPayload($activity);
 		}
 
 		return $this->returnMsg(200,$Activity,'成功');
 	}	
+
+    private function appPromotionPayload(Activity $activity)
+    {
+        $banner = ($activity->app_img ?? '') ?: ($activity->banner ?? '');
+        $detailImage = ($activity->app_detail_image ?? '') ?: ($activity->detail_image ?? '') ?: $banner;
+        $popupImage = ($activity->app_popup_image ?? '') ?: ($activity->popup_image ?? '') ?: $banner;
+        $title = $this->promotionDisplayText($activity->entitle ?? '', $activity->title ?? '');
+        $content = $this->promotionDisplayText($activity->encontent ?? '', $activity->content ?? '');
+        $memo = $this->promotionDisplayText($activity->enmemo ?? '', $activity->memo ?? '');
+        $typeName = $activity->type_data ? (string)($activity->type_data->name ?? '') : '';
+
+        return [
+            'id' => (int)($activity->id ?? 0),
+            'type' => $this->legacyAppActivityType((int)($activity->type ?? 0)),
+            'activity_type' => (int)($activity->type ?? 0),
+            'type_name' => $typeName,
+            'title' => $title,
+            'entitle' => (string)($activity->entitle ?? ''),
+            'content' => $content,
+            'memo' => $memo,
+            'enmemo' => (string)($activity->enmemo ?? ''),
+            'app_img' => $this->formatAppUploadUrl($banner),
+            'banner' => $this->formatAppUploadUrl($activity->banner ?? ''),
+            'popup_image' => $this->formatAppUploadUrl($popupImage),
+            'app_popup_image' => $this->formatAppUploadUrl($activity->app_popup_image ?? ''),
+            'detail_image' => $this->formatAppUploadUrl($detailImage),
+            'app_detail_image' => $this->formatAppUploadUrl($activity->app_detail_image ?? ''),
+            'button_text' => $this->appPromotionButtonText($activity),
+            'can_apply' => (int)($activity->can_apply ?? 0),
+            'requires_auth' => (int)($activity->requires_auth ?? 0),
+            'action_url' => (string)($activity->action_url ?? ''),
+            'is_popup' => (int)($activity->is_popup ?? 0),
+            'popup_frequency' => (string)(($activity->popup_frequency ?? '') ?: 'once'),
+            'popup_delay_seconds' => (int)($activity->popup_delay_seconds ?? 0),
+            'sort_order' => (int)($activity->sort_order ?? 0),
+            'starts_at' => isset($activity->starts_at) ? (string)$activity->starts_at : '',
+            'ends_at' => isset($activity->ends_at) ? (string)$activity->ends_at : '',
+        ];
+    }
+
+    private function legacyAppActivityType($type)
+    {
+        $map = [
+            5 => 6,
+            6 => 3,
+            7 => 4,
+            8 => 1,
+            10 => 5,
+            11 => 2,
+            12 => 7,
+        ];
+
+        return $map[$type] ?? 99;
+    }
+
+    private function appPromotionButtonText(Activity $activity)
+    {
+        $configured = trim((string)($activity->button_text ?? ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+
+        $url = trim((string)($activity->action_url ?? ''));
+        if ($url !== '') {
+            if (stripos($url, 'recharge') !== false || stripos($url, 'deposit') !== false) {
+                return 'เติมเงินทันที';
+            }
+            if (stripos($url, 'support') !== false || stripos($url, 'service') !== false) {
+                return 'ติดต่อฝ่ายบริการ';
+            }
+
+            return 'ดูรายละเอียด';
+        }
+
+        return (int)($activity->can_apply ?? 0) === 1 ? 'รับโปรโมชั่น' : 'ดูรายละเอียด';
+    }
+
+    private function promotionDisplayText($primary, $fallback)
+    {
+        $primary = trim((string)$primary);
+        if ($primary !== '') {
+            return $primary;
+        }
+
+        return trim((string)$fallback);
+    }
+
+    private function formatAppUploadUrl($path)
+    {
+        $path = trim((string)$path);
+        if ($path === '') {
+            return '';
+        }
+        if (preg_match('/^https?:\/\//i', $path)) {
+            return $path;
+        }
+        if (strpos($path, '/assets/') === 0) {
+            return rtrim(env('APP_URL'), '/') . $path;
+        }
+
+        return rtrim(env('APP_URL'), '/') . '/uploads/' . ltrim($path, '/');
+    }
+
 	//游戏类型：1真人,2捕鱼,3电子,4彩票,5体育,6棋牌,7电竞
     public function usergameForm(Request $request)
     {
@@ -995,36 +1164,38 @@ class AppController extends Controller
     {
 		$data = array();
 		if($request->has('lastsession')){
-			$user = User::where('api_token',$request->lastsession)->first();
-            $wapurl = env("WAP_URL");
-			$wapurl = explode(',', $wapurl);	
-			$register_url = $wapurl[0].'/#/register?pid='.$user->id;
+			$user = $this->activeUserFromApiToken($request->lastsession);
+            if ($user) {
+                $wapurl = env("WAP_URL");
+    			$wapurl = explode(',', $wapurl);	
+    			$register_url = $wapurl[0].'/#/register?pid='.$user->id;
 
-			$qrcodes = public_path('/qrcodes/');
-			// qrcodes 目录不存在，则创建文件夹
-			File::isDirectory($qrcodes) or File::makeDirectory($qrcodes, 0777, true, true);
-			
-			$img_file = 'qrcodes/'.$user['username'].'.png';
-			if(!file_exists($img_file)){
-				$QrCode = QrCode::format('png')->size(300)->generate($register_url,public_path($img_file));
-			}			
-			$data['qrcode'] = env('APP_URL').'/'.$img_file;
-			
-			
-			$public_path = public_path('/inviterQrcodes/');
-			// $public_path 目录不存在，则创建文件夹
-			File::isDirectory($public_path) or File::makeDirectory($public_path, 0777, true, true);
-            $inviterQrcodes = 'inviterQrcodes/'.$user['username'].'.png';
-			if(!file_exists($inviterQrcodes)){
-				$bg = imagecreatefrompng(public_path('/src_761chess_resource_img_extension_shareqrbg.png'));// 提前准备好的海报图
-				$qrcode = imagecreatefrompng(public_path($img_file));
-				imagecopyresampled($bg, $qrcode, 105, 365, 0, 0, 70, 70, imagesx($qrcode), imagesy($qrcode));
-				imagepng($bg, public_path('/inviterQrcodes/' . $user['username'].'.png'));
-			}			
+    			$qrcodes = public_path('/qrcodes/');
+    			// qrcodes 目录不存在，则创建文件夹
+    			File::isDirectory($qrcodes) or File::makeDirectory($qrcodes, 0777, true, true);
+    			
+    			$img_file = 'qrcodes/'.$user['username'].'.png';
+    			if(!file_exists($img_file)){
+    				$QrCode = QrCode::format('png')->size(300)->generate($register_url,public_path($img_file));
+    			}			
+    			$data['qrcode'] = env('APP_URL').'/'.$img_file;
+    			
+    			
+    			$public_path = public_path('/inviterQrcodes/');
+    			// $public_path 目录不存在，则创建文件夹
+    			File::isDirectory($public_path) or File::makeDirectory($public_path, 0777, true, true);
+                $inviterQrcodes = 'inviterQrcodes/'.$user['username'].'.png';
+    			if(!file_exists($inviterQrcodes)){
+    				$bg = imagecreatefrompng(public_path('/src_761chess_resource_img_extension_shareqrbg.png'));// 提前准备好的海报图
+    				$qrcode = imagecreatefrompng(public_path($img_file));
+    				imagecopyresampled($bg, $qrcode, 105, 365, 0, 0, 70, 70, imagesx($qrcode), imagesy($qrcode));
+    				imagepng($bg, public_path('/inviterQrcodes/' . $user['username'].'.png'));
+    			}			
 
-			$data['inviterQrcodes'] = env('APP_URL').'/'.$inviterQrcodes;
+    			$data['inviterQrcodes'] = env('APP_URL').'/'.$inviterQrcodes;
+            }
 		}
-		$data = array_merge($data, $this->customerServicePayload());
+		$data = array_merge($data, $this->customerServicePayload($this->requestPlayerLevel($request)));
 		$data['qq'] = '';
 		$data['wx'] = '';
 		return $this->returnMsg(200,$data,'成功');		
@@ -1189,6 +1360,11 @@ class AppController extends Controller
 		if(!$user){
 			return $this->returnMsg(201,'','登陆信息已过期');
 		}
+
+        if ($hit = $this->gameRestrictionHit($user, $api_code, $gameType, $gameCode)) {
+            return $this->returnMsg(500, [], $this->tcgRestrictionMessage($hit, 'game access restricted'));
+        }
+
 		$User_Api = User_Api::where('api_code',$api_code)->where('user_id',$user->id)->first();
 		if(!$User_Api){
 			$result = $tg->register($api_code,$user->username);

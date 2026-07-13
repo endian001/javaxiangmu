@@ -68,6 +68,7 @@ class PlatformOperationsLegacyCrudTest extends TestCase
             $table->string('mch_id')->nullable();
             $table->string('key')->nullable();
             $table->string('content')->nullable();
+            $table->string('payimg')->nullable();
             $table->integer('status')->default(1);
             $table->string('remark')->nullable();
             $table->string('download_name')->default('');
@@ -80,10 +81,12 @@ class PlatformOperationsLegacyCrudTest extends TestCase
             $table->increments('id');
             $table->string('category')->nullable();
             $table->string('wallet_address')->nullable();
+            $table->string('pay_qrcode')->nullable();
             $table->decimal('exchange_rate', 10, 4)->default(1);
             $table->decimal('min_price', 10, 2)->default(1);
             $table->decimal('max_price', 10, 2)->default(10000);
             $table->decimal('bonus_ratio', 10, 2)->default(0);
+            $table->string('pay_icon')->nullable();
             $table->integer('status')->default(1);
             $table->integer('sort_order')->default(0);
             $table->timestamps();
@@ -177,6 +180,7 @@ class PlatformOperationsLegacyCrudTest extends TestCase
             'account_type' => 'code',
             'category' => 'qr',
             'mch_id' => 'M001',
+            'payimg' => 'pay/qr.png',
             'status' => 'enabled',
         ]);
         $this->assertSame('', DB::table('code_pay')->where('id', $code['id'])->value('download_name'));
@@ -188,6 +192,8 @@ class PlatformOperationsLegacyCrudTest extends TestCase
             'account_type' => 'usdt',
             'category' => 'trc20',
             'wallet_address' => 'TTEST',
+            'pay_qrcode' => 'pay/usdt-qr.png',
+            'pay_icon' => 'pay/usdt-icon.png',
             'status' => 'enabled',
         ]);
 
@@ -195,6 +201,7 @@ class PlatformOperationsLegacyCrudTest extends TestCase
             'account_type' => 'code',
             'category' => 'updated',
             'mch_id' => 'M002',
+            'payimg' => 'pay/qr-updated.png',
             'status' => 'enabled',
         ], 'code_pay:'.$code['id']);
         $this->assertSame('updated', DB::table('code_pay')->where('id', $code['id'])->value('category'));
@@ -220,11 +227,12 @@ class PlatformOperationsLegacyCrudTest extends TestCase
             'pay_type_id' => null,
             'category' => 'qr-null-defaults',
             'mch_id' => 'M-NULL',
+            'payimg' => null,
             'download_name' => null,
             'download_url' => null,
             'min_price' => null,
             'max_price' => null,
-            'status' => 'enabled',
+            'status' => 'disabled',
         ]);
 
         $row = DB::table('code_pay')->where('id', $code['id'])->first();
@@ -232,6 +240,56 @@ class PlatformOperationsLegacyCrudTest extends TestCase
         $this->assertSame('', $row->download_url);
         $this->assertEquals(0.0, (float) $row->min_price);
         $this->assertEquals(0.0, (float) $row->max_price);
+    }
+
+    public function test_enabled_payment_accounts_require_and_persist_frontend_image_fields()
+    {
+        $service = new PlatformOperationsService();
+
+        try {
+            $service->saveLegacyRecord('20028', [
+                'account_type' => 'code',
+                'category' => 'qr',
+                'mch_id' => 'M-NO-IMG',
+                'status' => 'enabled',
+            ]);
+            $this->fail('Enabled code pay account should require payimg.');
+        } catch (\InvalidArgumentException $exception) {
+            $this->assertStringContainsString('payimg', $exception->getMessage());
+        }
+
+        $code = $service->saveLegacyRecord('20028', [
+            'account_type' => 'code',
+            'category' => 'qr',
+            'mch_id' => 'M-WITH-IMG',
+            'payimg' => 'pay/code.png',
+            'status' => 'enabled',
+        ]);
+        $this->assertSame('pay/code.png', DB::table('code_pay')->where('id', $code['id'])->value('payimg'));
+
+        try {
+            $service->saveLegacyRecord('20028', [
+                'account_type' => 'usdt',
+                'category' => 'trc20',
+                'wallet_address' => 'T-NO-IMG',
+                'status' => 'enabled',
+            ]);
+            $this->fail('Enabled USDT account should require QR code and icon.');
+        } catch (\InvalidArgumentException $exception) {
+            $this->assertStringContainsString('pay_qrcode', $exception->getMessage());
+        }
+
+        $usdt = $service->saveLegacyRecord('20028', [
+            'account_type' => 'usdt',
+            'category' => 'trc20',
+            'wallet_address' => 'T-WITH-IMG',
+            'pay_qrcode' => 'pay/usdt-qr.png',
+            'pay_icon' => 'pay/usdt-icon.png',
+            'status' => 'enabled',
+        ]);
+        $row = DB::table('usdt_pay')->where('id', $usdt['id'])->first();
+        $this->assertSame('pay/usdt-qr.png', $row->pay_qrcode);
+        $this->assertSame('pay/usdt-icon.png', $row->pay_icon);
     }
 
     public function test_commission_help_and_bank_account_crud_use_real_tables()

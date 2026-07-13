@@ -1,9 +1,9 @@
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) {
-    module.exports = factory();
-  } else {
-    root.TH2WPromotionCore = factory();
+  var api = factory();
+  if (typeof module === 'object' && module.exports && typeof window === 'undefined') {
+    module.exports = api;
   }
+  root.TH2WPromotionCore = api;
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   var PROMOTION_PATHS = ['/activity', '/activities', '/promotions'];
 

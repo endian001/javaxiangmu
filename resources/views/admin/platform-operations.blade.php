@@ -6,6 +6,7 @@
     $canStatus = in_array('status', $page['actions'], true);
     $canImport = in_array('import', $page['actions'], true);
     $canExport = in_array('export', $page['actions'], true);
+    $statusOptions = $statusOptions ?? [];
     $fieldLabels = [
         'keyword' => '关键字',
         'status' => '状态',
@@ -34,6 +35,7 @@
         'enname' => '英文名称',
         'cateid' => '帮助分类 ID',
         'content' => '内容',
+        'payimg' => '支付图',
         'encontent' => '英文内容',
         'stor' => '排序',
         'sort_order' => '排序',
@@ -47,11 +49,13 @@
         'mch_id' => '商户号',
         'key' => '密钥',
         'wallet_address' => '钱包地址',
+        'pay_qrcode' => 'USDT 二维码',
         'exchange_rate' => '兑换汇率',
         'min_price' => '最低金额',
         'max_price' => '最高金额',
         'download_name' => '下载名称',
         'download_url' => '下载地址',
+        'pay_icon' => 'USDT 图标',
         'type' => '结算类型',
         'realperson' => '真人比例',
         'electron' => '电子比例',
@@ -161,13 +165,17 @@
                 @foreach ($page['filters'] as $filter)
                     <div class="form-group mr-2 mb-2">
                         <label class="mr-1">{{ $fieldLabel($filter) }}</label>
-                        @if ($filter === 'status')
+                        @if ($filter === 'status' && !empty($statusOptions))
                             <select class="form-control form-control-sm" name="status">
                                 <option value="">全部</option>
-                                <option value="enabled" {{ request('status') === 'enabled' ? 'selected' : '' }}>启用</option>
-                                <option value="disabled" {{ request('status') === 'disabled' ? 'selected' : '' }}>停用</option>
-                                <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>待处理</option>
-                                <option value="completed" {{ request('status') === 'completed' ? 'selected' : '' }}>已完成</option>
+                                @foreach ($statusOptions as $value => $label)
+                                    <option
+                                        value="{{ $value }}"
+                                        {{ (string) request('status') === (string) $value ? 'selected' : '' }}
+                                    >
+                                        {{ $label }}
+                                    </option>
+                                @endforeach
                             </select>
                         @elseif (in_array($filter, ['date_from', 'date_to'], true))
                             <input
@@ -225,10 +233,9 @@
                     @if ($canStatus)
                         <select class="form-control ml-2 platform-operation-status" style="width: 130px;">
                             <option value="">批量状态</option>
-                            <option value="enabled">启用</option>
-                            <option value="disabled">停用</option>
-                            <option value="pending">待处理</option>
-                            <option value="completed">已完成</option>
+                            @foreach ($statusOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
                         </select>
                     @endif
                     @if ($canBulkDelete)
@@ -364,12 +371,15 @@
 
                         <div class="form-group">
                             <label>状态</label>
-                            <select class="form-control" name="status">
-                                <option value="enabled">启用</option>
-                                <option value="disabled">停用</option>
-                                <option value="pending">待处理</option>
-                                <option value="completed">已完成</option>
-                            </select>
+                            @if (!empty($statusOptions))
+                                <select class="form-control" name="status">
+                                    @foreach ($statusOptions as $value => $label)
+                                        <option value="{{ $value }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <input type="text" class="form-control" name="status">
+                            @endif
                         </div>
                     </div>
                     <div class="modal-footer">

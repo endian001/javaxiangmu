@@ -23,7 +23,7 @@ class ExtendActivityPromotions extends Migration
                 $table->tinyInteger('is_popup')->default(0)->after('ends_at');
             }
             if (!Schema::hasColumn('activities', 'popup_frequency')) {
-                $table->string('popup_frequency', 20)->default('daily')->after('is_popup');
+                $table->string('popup_frequency', 20)->default('once')->after('is_popup');
             }
             if (!Schema::hasColumn('activities', 'popup_delay_seconds')) {
                 $table->unsignedInteger('popup_delay_seconds')->default(0)->after('popup_frequency');
@@ -43,8 +43,11 @@ class ExtendActivityPromotions extends Migration
             if (!Schema::hasColumn('activities', 'action_url')) {
                 $table->string('action_url')->nullable()->after('app_detail_image');
             }
+            if (!Schema::hasColumn('activities', 'button_text')) {
+                $table->string('button_text', 80)->nullable()->after('action_url');
+            }
             if (!Schema::hasColumn('activities', 'requires_auth')) {
-                $table->tinyInteger('requires_auth')->default(0)->after('action_url');
+                $table->tinyInteger('requires_auth')->default(0)->after('button_text');
             }
         });
 
@@ -95,6 +98,7 @@ class ExtendActivityPromotions extends Migration
         Schema::table('activities', function (Blueprint $table) {
             foreach ([
                 'requires_auth',
+                'button_text',
                 'action_url',
                 'app_detail_image',
                 'detail_image',

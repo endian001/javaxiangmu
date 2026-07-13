@@ -7,6 +7,7 @@ use Illuminate\Routing\Controller as BaseController;
 use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use App\Models\SystemConfig;
+use App\Services\TcgBusinessOperationService;
 use Validator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Request;
@@ -35,17 +36,29 @@ class Controller extends BaseController
         ]);
     }
 
-    protected function customerServicePayload()
+    protected function customerServicePayload($playerLevel = 0)
     {
-        $url = $this->customerServiceLink();
-        $services = $this->customerServiceEntries();
+        $linkUrl = $this->customerServiceLink();
+        $realtimeUrl = $this->realtimeCustomerServiceUrl();
+        $services = $this->customerServiceEntries($playerLevel);
         $streamChat = $this->customerStreamChatStatus();
         $streamReady = $streamChat['enabled'] && $streamChat['configured'];
         $appUrl = rtrim((string) env('APP_URL'), '/');
         $serviceType = SystemConfig::getValue('service_type') ?: 'link';
         $workOrderEnabled = $serviceType === 'gongdan';
         $workOrderPageUrl = $workOrderEnabled ? $appUrl . '/support/work-orders.html' : '';
-        $serviceUrl = $url ?: $workOrderPageUrl;
+        $fallbackUrl = $workOrderPageUrl;
+        $realtimeEnabled = $realtimeUrl !== '' || $streamReady;
+        $serviceUrl = $realtimeUrl ?: ($linkUrl ?: $workOrderPageUrl);
+        if ($realtimeEnabled) {
+            $mode = 'realtime';
+        } elseif ($workOrderEnabled) {
+            $mode = 'work_order';
+        } elseif ($serviceUrl !== '' || count($services) > 0) {
+            $mode = 'link';
+        } else {
+            $mode = 'none';
+        }
 
         return [
             'url' => $serviceUrl,
@@ -53,9 +66,14 @@ class Controller extends BaseController
             'service_url' => $serviceUrl,
             'service_link' => $serviceUrl,
             'domain' => $appUrl,
+            'mode' => $mode,
             'service_type' => $serviceType,
-            'configured' => $url !== '' || $streamReady || $workOrderEnabled || count($services) > 0,
-            'link_configured' => $url !== '',
+            'configured' => $serviceUrl !== '' || $streamReady || $workOrderEnabled || count($services) > 0,
+            'link_configured' => $linkUrl !== '',
+            'realtime_enabled' => $realtimeEnabled,
+            'realtime_url' => $realtimeUrl,
+            'livechat_url' => $realtimeUrl,
+            'fallback_url' => $fallbackUrl,
             'services' => $services,
             'service_count' => count($services),
             'work_order_enabled' => $workOrderEnabled,
@@ -166,6 +184,25 @@ class Controller extends BaseController
         return '';
     }
 
+    protected function realtimeCustomerServiceUrl()
+    {
+        $candidates = [
+            SystemConfig::getValue('platform_livechat_url'),
+            SystemConfig::getValue('livechat_url'),
+            SystemConfig::getValue('customer_livechat_url'),
+            SystemConfig::getValue('online_service_url'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            $candidate = trim((string) $candidate);
+            if ($this->isUsableCustomerServiceUrl($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return '';
+    }
+
     protected function isUsableCustomerServiceUrl($url)
     {
         if ($url === '' || !preg_match('/^https?:\/\//i', $url)) {
@@ -190,7 +227,13 @@ class Controller extends BaseController
             return false;
         }
 
-        return substr($host, -10) !== '.baidu.com';
+        foreach (['baidu.com', 'example.com', 'example.net', 'example.org'] as $blockedHost) {
+            if ($host === $blockedHost || substr($host, -1 * (strlen($blockedHost) + 1)) === '.'.$blockedHost) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     protected function customerStreamChatStatus()
@@ -324,6 +367,75 @@ class Controller extends BaseController
         $params = array_merge(['pid' => (int) $userId], $query);
 
         return $baseUrl . '/#/register?' . http_build_query($params);
+    }
+
+    protected function activityBlacklistHit($user, $activityId)
+    {
+        if (!$user) return null;
+
+        return $this->tcgBusinessOperations()->activityBlacklistHit($user, $activityId);
+    }
+
+    protected function activityBlacklistMessage($hit, $fallback = 'Activity application is restricted')
+    {
+        return $this->tcgBusinessOperations()->activityBlacklistMessage($hit, $fallback);
+    }
+
+    protected function validateActivityCouponForApply($request, $user, $activityId)
+    {
+        $couponCode = $this->activityCouponCode($request);
+        if ($couponCode === '') {
+            return ['ok' => true, 'coupon' => null, 'message' => ''];
+        }
+
+        $coupon = $this->tcgBusinessOperations()->couponForApply($couponCode, $user, $activityId);
+        if (!$coupon) {
+            return ['ok' => false, 'coupon' => null, 'message' => 'Invalid or expired activity coupon'];
+        }
+
+        return ['ok' => true, 'coupon' => $coupon, 'message' => ''];
+    }
+
+    protected function markActivityCouponUsed($coupon, $user = null)
+    {
+        if (!$coupon) {
+            return true;
+        }
+
+        return $this->tcgBusinessOperations()->markCouponUsed($coupon->id, $user);
+    }
+
+    protected function activityCouponCode($request)
+    {
+        foreach (['coupon_code', 'couponCode', 'ticket_code', 'ticketCode', 'voucher_code', 'voucherCode'] as $key) {
+            $value = trim((string) $request->input($key, ''));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    protected function gameRestrictionHit($user, $platform, $gameType = '', $gameCode = '')
+    {
+        return $this->tcgBusinessOperations()->gameRestrictionHit($user, $platform, $gameType, $gameCode);
+    }
+
+    protected function amountExceedsPlayerLimit($user, $amount, $platform, $gameType = '', $gameCode = '')
+    {
+        return $this->tcgBusinessOperations()->amountExceedsPlayerLimit($user, $amount, $platform, $gameType, $gameCode);
+    }
+
+    protected function tcgRestrictionMessage($hit, $fallback = 'game access restricted')
+    {
+        $remark = trim((string)($hit->remark ?? ''));
+        return $remark === '' ? $fallback : $fallback.': '.$remark;
+    }
+
+    protected function tcgBusinessOperations()
+    {
+        return new TcgBusinessOperationService();
     }
 
     public function validate($request, $rules, $message){

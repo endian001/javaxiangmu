@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
      */
     protected $commands = [
         Commands\CrawGameRecord::class,
+        Commands\AllAgentFanyong::class,
     ];
 
     /**
@@ -25,6 +26,10 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule)
     {
         $schedule->command('CrawGameRecord')->everyFiveMinutes();
+        $schedule->command('AllAgentFanyong')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/agent-fanyong.log'));
         $schedule->command('GameOpsAudit')
             ->hourly()
             ->withoutOverlapping()

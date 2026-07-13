@@ -103,11 +103,15 @@ class PlatformSettingsController extends Controller
             'position' => 'required|integer|min:0|max:100000',
             'min_player_level' => 'required|integer|min:0|max:100000',
         ]);
+        $serviceUrl = trim($data['service_url']);
+        if (!$this->isUsableCustomerContactUrl($serviceUrl)) {
+            return $this->error('客服链接不可用，请填写有效的 http(s) 或电话链接', 422);
+        }
         $now = now();
         $values = [
             'service_type' => trim($data['service_type']),
             'display_name' => trim($data['display_name']),
-            'service_url' => trim($data['service_url']),
+            'service_url' => $serviceUrl,
             'position' => (int) $data['position'],
             'min_player_level' => (int) $data['min_player_level'],
             'status' => $this->asBoolean($request->input('status', 0)),
@@ -274,6 +278,47 @@ class PlatformSettingsController extends Controller
     private function asBoolean($value)
     {
         return in_array($value, [1, '1', true, 'true', 'on', 'yes'], true);
+    }
+
+    private function isUsableCustomerContactUrl($url)
+    {
+        $url = trim((string) $url);
+        if (preg_match('/^tel:\+?[0-9()\-\s]{5,30}$/i', $url)) {
+            return true;
+        }
+
+        return $this->isUsableCustomerServiceUrl($url);
+    }
+
+    private function isUsableCustomerServiceUrl($url)
+    {
+        $url = trim((string) $url);
+        if ($url === '' || !preg_match('/^https?:\/\//i', $url)) {
+            return false;
+        }
+
+        $host = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if ($host === '') {
+            return false;
+        }
+        if (strpos($host, 'www.') === 0) {
+            $host = substr($host, 4);
+        }
+
+        $placeholderHosts = [
+            'baidu.com',
+            'example.com',
+            'example.net',
+            'example.org',
+            'localhost',
+            '127.0.0.1',
+        ];
+
+        if (in_array($host, $placeholderHosts, true)) {
+            return false;
+        }
+
+        return substr($host, -10) !== '.baidu.com';
     }
 
     private function success($message, array $data = [])

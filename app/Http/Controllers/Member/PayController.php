@@ -62,6 +62,9 @@ class PayController extends Controller
     public function rechargeDo(Request $request)
     {
         $data = $request->all();
+        if (!Auth::user()) {
+            return $this->returnMsg(401, [], 'login expired');
+        }
         $min_recharge_money = SystemConfig::getValue('min_recharge_money');
         $max_recharge_money = SystemConfig::getValue('max_recharge_money');
         if (isset($min_recharge_money) && !empty($min_recharge_money)) {
@@ -481,6 +484,15 @@ class PayController extends Controller
         return $item;
     }
 
+    public function getBankCardData(Request $request)
+    {
+        if (!$request->has('type')) {
+            $request->merge(['type' => 1]);
+        }
+
+        return $this->getAllUserCard($request);
+    }
+
     public function delCard($id)
     {
         $res = UserCard::where('id',$id)->where('user_id', Auth::id())->delete();
@@ -491,6 +503,9 @@ class PayController extends Controller
     {
 
         $user = Auth::user();
+        if (!$user) {
+            return $this->returnMsg(401, [], 'login expired');
+        }
         $tg = new TgService;
         $result = $tg->allusersbalance($user->username);
         //dd($result);
@@ -510,6 +525,9 @@ class PayController extends Controller
     public function userAllBalance(){
 
         $user = Auth::user();
+        if (!$user) {
+            return $this->returnMsg(401, [], 'login expired');
+        }
         $Balancelist = Usersmoney::getUserBalance(Auth::id());
 
         return $this->returnMsg($Balancelist ? 200 : 500,$Balancelist,"");
@@ -518,6 +536,10 @@ class PayController extends Controller
     public function withdraw()
     {
         $lang = $this->showlang;
+        $user = Auth::user();
+        if (!$user) {
+            return $this->returnMsg(401, [], 'login expired');
+        }
         $card_count = UserCard::where('user_id',Auth::id())->count();
         $cards = UserCard::where('user_id',Auth::id())->get();
 
@@ -544,6 +566,9 @@ class PayController extends Controller
             $withdraw_fee = SystemConfig::getValue('withdraw_fee');
             $max_withdraw_money = SystemConfig::getValue('max_withdraw_money');
             $user = Auth::user();
+            if (!$user) {
+                return $this->returnMsg(401, [], 'login expired');
+            }
             if (isset($daily_withdraw_times) && !empty($daily_withdraw_times)) {
                 $count = Withdraw::whereDate('created_at',date('Y-m-d'))->count();
                 if ($count >= $daily_withdraw_times) {
@@ -625,6 +650,9 @@ class PayController extends Controller
                 try {
                     $merchant_id = SystemConfig::where('key','merchant_id')->value('value') ?? '';
                     $api_secret = SystemConfig::where('key','zgp_secret')->value('value') ?? '';
+                    if ($merchant_id === '' || $api_secret === '') {
+                        return $this->returnMsg(500, [], 'system config missing');
+                    }
                     $zgpay = new Zgpay($merchant_id,$api_secret);
                     $res = $zgpay->withdraw($order_no,$data['amount'],$card->bank_owner,$card->bank_no);
                     $res = json_decode($res,true);
@@ -670,6 +698,9 @@ class PayController extends Controller
             }
 
             $usdtRate = SystemConfig::getValue('withdraw_usdt_rate');
+            if (($card->bank_address == 'TRC20' || $card->bank_address == 'ERC20') && (float) $usdtRate <= 0) {
+                throw new \RuntimeException('withdraw usdt rate missing');
+            }
             $type = isset($data['type']) ? $data['type'] : ($card->bank == 'USDT' ? 2 : 1);
             if ($card->bank_address == 'TRC20') {
                 $cashFee = SystemConfig::getValue('withdraw_cash_fee') ?? 0;
@@ -747,12 +778,50 @@ class PayController extends Controller
         });
     }
 
-    public function getAllUserCard()
+    public function getAllUserCard(Request $request)
     {
-        $list['bank'] = UserCard::where('user_id',Auth::id())->where("bank","<>","USDT")->get();
-        $list['zgpay'] = UserCard::where('user_id',Auth::id())->where("bank","=","USDT")->first();
-        $list['usdt'] = UserCard::where('user_id',Auth::id())->where("bank","=","USDT")->get();
-        return $this->returnMsg(200,$list);
+        $type = (int) ($request->input('type', 1) ?: 1);
+        $userId = Auth::id();
+        if (!$userId) {
+            return $this->returnMsg(401, [], 'login expired');
+        }
+
+        switch ($type) {
+            case 1:
+                $list = UserCard::where('user_id', $userId)->whereNotIn('bank', ['USDT', 'ebpay', 'antoken'])->get();
+                break;
+            case 2:
+                $list = UserCard::where('user_id', $userId)->where('bank', 'USDT')->get();
+                break;
+            case 3:
+                $list = UserCard::where('user_id', $userId)->where('bank', 'ebpay')->get();
+                break;
+            case 4:
+                $list = UserCard::where('user_id', $userId)->where('bank', 'antoken')->get();
+                break;
+            default:
+                return $this->returnMsg(500, [], 'card type required');
+        }
+
+        $usdtRate = SystemConfig::getValue('usdt_rate');
+        $withdrawUsdtRate = SystemConfig::getValue('withdraw_usdt_rate');
+        if ($usdtRate === '' || $withdrawUsdtRate === '') {
+            return $this->returnMsg(500, [], 'system config missing');
+        }
+
+        foreach ($list as &$val) {
+            if ($val->bank !== 'USDT' && $val->bank !== 'ebpay' && $val->bank !== 'antoken') {
+                $banklist = Bank::where('bank_name', $val->bank)->first();
+                $val->ico = $banklist ? env('APP_URL').'/uploads/'.$banklist->bank_img : '';
+            } else {
+                $val->ico = '';
+            }
+            $val->bank_not = substr($val->bank_no, -4);
+            $val->usdtrate = $usdtRate;
+            $val->withdrawusdtrate = $withdrawUsdtRate;
+        }
+
+        return $this->returnMsg(200, $list);
     }
 
     public function transAll()
@@ -817,14 +886,31 @@ class PayController extends Controller
     {
         $type = $request->input('type') ?? '';
         $user = Auth::user();
+        if (!$user) {
+            return $this->returnMsg(401, [], 'login expired');
+        }
         if ($type == 'system') {
-            return $this->returnMsg(200,$user->balance);
+            return $this->returnMsg(200, ['balance' => (float) $user->balance]);
         }
         $tg = new TgService;
         $result = $tg->allusersbalance($user->username);
-        if ($result['code'] != 200) {
-            return $this->returnMsg(500,[],$result['message']);
+        if (!is_array($result) || (($result['code'] ?? 201) != 200)) {
+            return $this->returnMsg(500, [], $result['message'] ?? 'refresh failed');
         }
+        $balances = $result['data']['userblance'] ?? [];
+        if (is_array($balances)) {
+            foreach ($balances as $wo) {
+                Usersmoney::upinfo($user->id, $wo['gamecode'] ?? '', $wo['blance'] ?? 0);
+            }
+        }
+        $freshUser = User::find($user->id);
+        $data = [
+            'balance' => $freshUser ? (float) $freshUser->balance : (float) $user->balance,
+            'game_balance' => Usersmoney::getUserBalance($user->id),
+            'game_total_balance' => Usersmoney::getTotalAppUserBalance($user->id),
+        ];
+
+        return $this->returnMsg(200, $data);
 
     }
     public function getUserPlBalance(Request $request)

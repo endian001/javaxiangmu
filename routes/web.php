@@ -1,5 +1,10 @@
 <?php
 
+Route::any('/notice', function () { return response()->file(public_path('index.html')); });
+Route::any('/notices', function () { return response()->file(public_path('index.html')); });
+Route::any('/announcement', function () { return response()->file(public_path('index.html')); });
+Route::any('/announcements', function () { return response()->file(public_path('index.html')); });
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -52,8 +57,8 @@ Route::domain(env('AGENT_URL'))->group(function (){
 // -------------------手机版-----------------
 Route::domain(env('WAP_URL'))->group(function (){
 
-    Route::any('/login','Wap\IndexController@login');
-    Route::any('/register','Wap\IndexController@register');
+    Route::any('/login', function () { return response()->file(public_path('index.html')); });
+    Route::any('/register', function () { return response()->file(public_path('index.html')); });
     Route::get('/','Wap\IndexController@index');
     Route::get('/activity','Wap\IndexController@promotionEntry');
     Route::get('/activities','Wap\IndexController@promotionEntry');
@@ -122,12 +127,14 @@ Route::get('/promotions','Web\IndexController@promotionEntry');
 Route::get('/articles','Web\IndexController@articles');
 Route::get('/agent','Web\IndexController@agent');
 Route::get('/appindex','Web\IndexController@appindex');
-Route::get('/register','Member\AuthController@register');
+Route::get('/login', function () { return response()->file(public_path('index.html')); });
+Route::get('/register', function () { return response()->file(public_path('index.html')); });
+Route::get('/new-h5/login', function () { return response()->file(public_path('new-h5/index.html')); });
+Route::get('/new-h5/register', function () { return response()->file(public_path('new-h5/index.html')); });
 Route::post('/registerDo','Member\AuthController@registerDo');
 Route::post('/loginDo','Member\AuthController@loginDo');
 Route::get('/logout','Member\AuthController@logout');
 Route::post('/upload','Web\IndexController@upload');//上传文件
-Route::any('/notice','Web\IndexController@notice');
 Route::any('/notify','Member\PayController@notify');
 Route::post('/notify/verify','Api\IndexController@wxgameVerify');
 Route::post('/notify/balance','Api\IndexController@wxgameBalance');

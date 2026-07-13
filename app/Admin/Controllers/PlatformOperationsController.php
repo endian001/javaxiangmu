@@ -352,6 +352,11 @@ class PlatformOperationsController extends Controller
         if (!$ids || $status === '') {
             return $this->error('请选择记录并指定状态', 422);
         }
+        try {
+            $status = $this->service->normalizeStatus($code, $status);
+        } catch (InvalidArgumentException $exception) {
+            return $this->error($exception->getMessage(), 422);
+        }
 
         $updated = DB::table($table)
             ->where('page_code', (string) $code)
@@ -537,6 +542,7 @@ class PlatformOperationsController extends Controller
             abort(403, '无权访问平台运营页面');
         }
         $page = $this->service->page($code);
+        $statusOptions = $this->service->statusOptions($code);
         $values = [];
         $records = null;
 
@@ -567,6 +573,7 @@ class PlatformOperationsController extends Controller
             ->description($page['module'].' / '.$page['code'])
             ->body(view('admin.platform-operations', compact(
                 'page',
+                'statusOptions',
                 'values',
                 'records'
             ))->render());
@@ -578,12 +585,17 @@ class PlatformOperationsController extends Controller
         if ($data['title'] === '') {
             return $this->error('标题不能为空', 422);
         }
+        try {
+            $status = $this->service->normalizeStatus($page['code'], $data['status']);
+        } catch (InvalidArgumentException $exception) {
+            return $this->error($exception->getMessage(), 422);
+        }
         $now = now();
         $values = [
             'page_code' => $page['code'],
             'record_type' => mb_substr(trim((string) $request->input('record_type', 'record')), 0, 50),
             'title' => $data['title'],
-            'status' => $data['status'],
+            'status' => $status,
             'sort_order' => $data['sort_order'],
             'amount' => $request->filled('amount') ? (float) $request->input('amount') : null,
             'currency' => $request->filled('currency') ? mb_substr(trim((string) $request->input('currency')), 0, 10) : null,
@@ -632,6 +644,11 @@ class PlatformOperationsController extends Controller
             'occurred_at' => 'nullable|date',
             'remark' => 'nullable|string|max:5000',
         ]);
+        try {
+            $status = $this->service->normalizeStatus($page['code'], $data['status']);
+        } catch (InvalidArgumentException $exception) {
+            return $this->error($exception->getMessage(), 422);
+        }
         $now = now();
         $values = [
             'page_code' => $page['code'],
@@ -642,7 +659,7 @@ class PlatformOperationsController extends Controller
             'balance_before' => isset($data['balance_before']) ? $data['balance_before'] : null,
             'balance_after' => isset($data['balance_after']) ? $data['balance_after'] : null,
             'currency' => isset($data['currency']) ? strtoupper(trim($data['currency'])) : null,
-            'status' => trim($data['status']),
+            'status' => $status,
             'occurred_at' => isset($data['occurred_at']) ? $data['occurred_at'] : $now,
             'remark' => isset($data['remark']) ? trim($data['remark']) : null,
             'business_data' => null,
@@ -704,11 +721,12 @@ class PlatformOperationsController extends Controller
             if ($data['title'] === '') {
                 throw new InvalidArgumentException('标题不能为空');
             }
+            $status = $this->service->normalizeStatus($page['code'], $data['status']);
             $values = [
                 'page_code' => $page['code'],
                 'record_type' => mb_substr(trim((string) (isset($input['record_type']) ? $input['record_type'] : 'record')), 0, 50),
                 'title' => $data['title'],
-                'status' => $data['status'],
+                'status' => $status,
                 'sort_order' => $data['sort_order'],
                 'amount' => isset($input['amount']) && $input['amount'] !== '' ? (float) $input['amount'] : null,
                 'currency' => isset($input['currency']) && $input['currency'] !== '' ? mb_substr(trim((string) $input['currency']), 0, 10) : null,
@@ -747,6 +765,7 @@ class PlatformOperationsController extends Controller
                 throw new InvalidArgumentException('金额必须为数字');
             }
             $status = trim((string) (isset($input['status']) ? $input['status'] : 'pending'));
+            $status = $this->service->normalizeStatus($page['code'], $status);
             $businessNo = trim((string) (isset($input['business_no']) ? $input['business_no'] : ''));
             if ($businessNo === '') {
                 $businessNo = 'PO-'.$page['code'].'-'.date('YmdHis').'-'.strtoupper(substr(bin2hex(random_bytes(3)), 0, 6));
@@ -761,7 +780,7 @@ class PlatformOperationsController extends Controller
                 'balance_before' => isset($input['balance_before']) && $input['balance_before'] !== '' ? (float) $input['balance_before'] : null,
                 'balance_after' => isset($input['balance_after']) && $input['balance_after'] !== '' ? (float) $input['balance_after'] : null,
                 'currency' => isset($input['currency']) && $input['currency'] !== '' ? strtoupper(mb_substr(trim((string) $input['currency']), 0, 10)) : null,
-                'status' => mb_substr($status, 0, 30),
+                'status' => $status,
                 'occurred_at' => isset($input['occurred_at']) && $input['occurred_at'] !== '' ? $input['occurred_at'] : $now,
                 'remark' => isset($input['remark']) && $input['remark'] !== '' ? mb_substr(trim((string) $input['remark']), 0, 5000) : null,
                 'business_data' => null,

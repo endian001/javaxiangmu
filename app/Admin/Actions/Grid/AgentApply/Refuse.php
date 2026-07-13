@@ -54,7 +54,7 @@ class Refuse extends RowAction
 
         return $this->response()
             ->success('审核成功')
-            ->redirect('/agent-applys');
+            ->redirect(admin_url('agent-applys'));
     }
 
     /**

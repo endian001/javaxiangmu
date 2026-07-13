@@ -109,12 +109,21 @@ class PayController extends Controller
      $token = $request->header('authorization');
      $token = str_replace('Bearer ','',$token) ;
      $user = User::where('api_token',$token)->first(); 
+        if (!$user) {
+            return $this->returnMsg(201, [], 'login expired');
+        }
      
         $data = $request->all();
         $info = Recharge::where('user_id',$user->id)->where('out_trade_no',$data['deposit_no'])->first();
+        if (!$info) {
+            return $this->returnMsg(500, [], 'recharge order not found');
+        }
         switch ($info['pay_way']) {
             case 1: //提交后台审核
                 $cardlist = PaySetting::where('state',1)->get();
+                if ($cardlist->isEmpty()) {
+                    return $this->returnMsg(500, [], 'bank pay channel unavailable');
+                }
                 foreach ($cardlist as &$val){
                     if($val->bank_data->bank_name!='USDT' || $val->bank_data->bank_name!='银行类型后台添加'){
                         $val->ico= env('APP_URL').'/uploads/'. $val->bank_data->bank_img;    
@@ -128,16 +137,22 @@ class PayController extends Controller
                 return $this->returnMsg($data ? 200 : 500,$data,'bankpay');
                 break;
             case 3: //提交后台审核  alipay
-                $alipayinfo = CodePay::where('status',1)->where('id',4)->first();
-                $alipayinfo->payimg = env('APP_URL').'/uploads/'.$alipayinfo->payimg;
+                $alipayinfo = $this->findActiveCodePay(['alipay', 4]);
+                if (!$alipayinfo) {
+                    return $this->returnMsg(500, [], 'alipay channel unavailable');
+                }
+                $alipayinfo->payimg = $alipayinfo->payimg ? env('APP_URL').'/uploads/'.$alipayinfo->payimg : '';
                 $info->paytype='支付宝扫码支付';
                 $data['info'] = $info;
                 $data['cardlist'] = $alipayinfo;                
                 return $this->returnMsg($data ? 200 : 500,$data,'alipay');
                 break;
             case 4: //提交后台审核  wxpay
-                $wxinfo = CodePay::where('status',1)->where('id',3)->first();
-                $wxinfo->payimg = env('APP_URL').'/uploads/'.$wxinfo->payimg;
+                $wxinfo = $this->findActiveCodePay(['wechat', 3]);
+                if (!$wxinfo) {
+                    return $this->returnMsg(500, [], 'wechat channel unavailable');
+                }
+                $wxinfo->payimg = $wxinfo->payimg ? env('APP_URL').'/uploads/'.$wxinfo->payimg : '';
                 $info->paytype='微信扫码支付';
                 $data['info'] = $info;
                 $data['cardlist'] = $wxinfo;                    
@@ -145,8 +160,11 @@ class PayController extends Controller
                 break;
            case 5: //提交后台审核  USDT
                 $infousd = SystemConfig::where('key','usdt_rate')->first();
-                $usdtinfo = CodePay::where('status',1)->where('id',5)->first();    
-                $usdtinfo->payimg = env('APP_URL').'/uploads/'.$usdtinfo->payimg;
+                $usdtinfo = $this->findActiveCodePay(['trc20', 5]);    
+                if (!$usdtinfo) {
+                    return $this->returnMsg(500, [], 'usdt trc20 channel unavailable');
+                }
+                $usdtinfo->payimg = $usdtinfo->payimg ? env('APP_URL').'/uploads/'.$usdtinfo->payimg : '';
                 $info->paytype='USDT扫码支付';
                 $info->usdtrate = $infousd->value;
                 $info->real_money = round($info->real_money / $infousd->value,2);
@@ -157,9 +175,11 @@ class PayController extends Controller
            case 6: //提交后台审核  USDT
                 $infousd = SystemConfig::where('key','usdt_rate')->first();
                 
-                $usdtinfo = CodePay::where('status',1)->where('id',7)->first();        
-               
-                $usdtinfo->payimg = env('APP_URL').'/uploads/'.$usdtinfo->payimg;
+                $usdtinfo = $this->findActiveCodePay(['erc20', 7]);        
+                if (!$usdtinfo) {
+                    return $this->returnMsg(500, [], 'usdt erc20 channel unavailable');
+                }
+                $usdtinfo->payimg = $usdtinfo->payimg ? env('APP_URL').'/uploads/'.$usdtinfo->payimg : '';
                 $info->paytype='USDT扫码支付';
                 $info->usdtrate = $infousd->value;
                 $info->real_money = round($info->real_money / $infousd->value,2);
@@ -168,8 +188,11 @@ class PayController extends Controller
                 return $this->returnMsg($data ? 200 : 500,$data,'usdtpay');
                 break;     
             case 7:
-                $ebpay = CodePay::where('status',1)->where('id',8)->first();
-                $ebpay->payimg = env('APP_URL').'/uploads/'.$ebpay->payimg;
+                $ebpay = $this->findActiveCodePay(['ebpay', 8]);
+                if (!$ebpay) {
+                    return $this->returnMsg(500, [], 'ebpay channel unavailable');
+                }
+                $ebpay->payimg = $ebpay->payimg ? env('APP_URL').'/uploads/'.$ebpay->payimg : '';
                 $info->paytype='EBpay';
                 $data['info'] = $info;
                 $data['cardlist'] = $ebpay;                    
@@ -177,6 +200,9 @@ class PayController extends Controller
                 break;
             default:
                 $cardlist = PaySetting::where('state',1)->get();
+                if ($cardlist->isEmpty()) {
+                    return $this->returnMsg(500, [], 'bank pay channel unavailable');
+                }
                 foreach ($cardlist as &$val){
                     if($val->bank_data->bank_name!='USDT' || $val->bank_data->bank_name!='银行类型后台添加'){
                         $val->ico= env('APP_URL').'/uploads/'. $val->bank_data->bank_img;    
@@ -209,9 +235,12 @@ class PayController extends Controller
         ];
         $this->validate($request, $rules, $this->messages);
       
-     $token = $request->header('authorization');
-     $token = str_replace('Bearer ','',$token) ;
-            $user = User::where('api_token',$token)->first(); 
+      $token = $request->header('authorization');
+      $token = str_replace('Bearer ','',$token) ;
+             $user = User::where('api_token',$token)->first(); 
+        if (!$user) {
+            return $this->returnMsg(201, [], 'login expired');
+        }
 
         $data = $request->all();
         $min_recharge_money = SystemConfig::getValue('min_recharge_money');
@@ -236,6 +265,9 @@ class PayController extends Controller
         
         switch ($data['pay_way']) {
             case "bank": //提交后台审核
+                if (!PaySetting::where('state',1)->exists()) {
+                    return $this->returnMsg(500, [], 'bank pay channel unavailable');
+                }
                 $data['pay_way'] =1;
                 $data['cash_fee'] = 0;
                 $data['real_money'] = $data['amount'] - $data['cash_fee'];
@@ -248,7 +280,7 @@ class PayController extends Controller
             case "alipay": //提交后台审核  alipay
                 $data['cash_fee'] = 0;
                 $data['pay_way'] =3;
-                $usdtinfo = CodePay::where('status',1)->where('id',4)->first();
+                $usdtinfo = $this->findActiveCodePay(['alipay', 4]);
                 if(!$usdtinfo){
                      return $this->returnMsg(500,[],'系统维护中...');
                 }
@@ -261,7 +293,7 @@ class PayController extends Controller
                 $data['cash_fee'] = 0;
                 $data['pay_way'] =4;
                 $data['real_money'] = $data['amount'] - $data['cash_fee'];
-                $usdtinfo = CodePay::where('status',1)->where('id',3)->first();
+                $usdtinfo = $this->findActiveCodePay(['wechat', 3]);
                 if(!$usdtinfo){
                      return $this->returnMsg(500,[],'系统维护中...');
                 }           
@@ -276,7 +308,7 @@ class PayController extends Controller
                 
                 $pay_way = ($catepay=='TRC20') ? 5 : 7;
                 
-                $usdtinfo = CodePay::where('status',1)->where('id',$pay_way)->first();
+                $usdtinfo = $this->findActiveCodePay($pay_way == 5 ? ['trc20', 5] : ['erc20', 7]);
                 if(!$usdtinfo){
                      return $this->returnMsg(500,[],'系统维护中...');
                 }   
@@ -290,7 +322,7 @@ class PayController extends Controller
         	    $data['pay_way'] = 7;
                 $data['cash_fee'] = 0;
                 $data['real_money'] = $data['amount'] - $data['cash_fee'];
-                $info = CodePay::where('status',1)->where('id',8)->first();
+                $info = $this->findActiveCodePay(['ebpay', 8]);
                 if(!$info){
                     return $this->returnMsg(500,[],'系统维护中...');
                 } 
@@ -308,24 +340,30 @@ class PayController extends Controller
     public function getPayRange(Request $request)
     {
         $type = $request->input('type');
+        $identifiers = [];
         switch ($type) {
             case 'bank':
                 $pay_way = 0;
                 break;
             case 'alipay':
                 $pay_way = 4;
+                $identifiers = ['支付宝', 'alipay', 4];
                 break;
             case 'wechat':
                 $pay_way = 3;
+                $identifiers = ['微信', 'wechat', 3];
                 break;
             case 'usdt-erc20':
                 $pay_way = 7;
+                $identifiers = ['USDT-ERC20', 'ERC20', 7];
                 break;
             case 'usdt-trc20':
                 $pay_way = 5;
+                $identifiers = ['USDT-TRC20', 'TRC20', 5];
                 break;
             case 'ebpay':
                 $pay_way = 8;
+                $identifiers = ['EBpay', 'EBPAY', 'ebpay', 8];
                 break;
             default:
                 $pay_way = 0;
@@ -333,7 +371,7 @@ class PayController extends Controller
         }
         $data = ['min_price' => 0,'max_price' => 0];
         if ($pay_way > 0) {
-            $range = CodePay::where('id',$pay_way)->select('min_price','max_price')->first();
+            $range = $this->findActiveCodePay($identifiers);
             if ($range) $data = ['min_price' => $range->min_price,'max_price' => $range->max_price];
         } else {
             $min_price = SystemConfig::getValue('min_price') ?? 0;
@@ -363,6 +401,9 @@ class PayController extends Controller
          $token = $request->header('authorization');
          $token = str_replace('Bearer ','',$token) ;
          $user = User::where('api_token',$token)->first(); 
+        if (!$user) {
+            return $this->returnMsg(201, [], 'login expired');
+        }
         if(!$user->paypwd){
             return $this->returnMsg(251,[],'请先设置支付密码');
         }
@@ -384,7 +425,7 @@ class PayController extends Controller
         }
 
         unset($data['pay_pass']);
-        if ($count > 5) return $this->returnMsg(207,[],'最多只能绑定5张银行卡');
+        if ($count >= 5) return $this->returnMsg(207,[],'最多只能绑定5张银行卡');
         $data['user_id'] = $user->id;
         $res = UserCard::create($data);
         return $this->returnMsg($res ? 200 : 500);
@@ -455,12 +496,6 @@ class PayController extends Controller
         if (!$user) {
             return $this->returnMsg(201, [], 'login expired');
         }
-        if (isset($daily_withdraw_times) && !empty($daily_withdraw_times)) {
-            $count = Withdraw::where('user_id', $user->id)->whereDate('created_at',date('Y-m-d'))->count();
-            if ($count >= $daily_withdraw_times) {
-                return $this->returnMsg(216);
-            }
-        }
         //时间限制
         $withdraw_begin_time = SystemConfig::getValue('withdraw_begin_time');
         $date = date('Y-m-d');
@@ -521,10 +556,16 @@ class PayController extends Controller
         $real_money = $data['amount'];
         $usdt_rate = (float) SystemConfig::getValue('withdraw_usdt_rate');
         if ($card['bank'] == 'USDT' && ($card['bank_address'] == 'TRC20' || $card['bank_owner'] == 'TRC20')) {
+            if ($usdt_rate <= 0) {
+                return $this->returnMsg(500, [], 'USDT 提现汇率未配置');
+            }
             $type = 2;
             $cash_fee = SystemConfig::getValue('withdraw_cash_fee') ?? 0;
             $real_money = $usdt_rate > 0 ? sprintf('%.2f', $data['amount'] / $usdt_rate) - $cash_fee : $data['amount'];
         } elseif ($card['bank'] == 'USDT' && ($card['bank_address'] == 'ERC20' || $card['bank_owner'] == 'ERC20')) {
+            if ($usdt_rate <= 0) {
+                return $this->returnMsg(500, [], 'USDT 提现汇率未配置');
+            }
             $type = 3;
             $cash_fee = SystemConfig::getValue('withdraw_fee_usdt_erc') ?? 0;
             $real_money = $usdt_rate > 0 ? sprintf('%.2f', $data['amount'] / $usdt_rate) - $cash_fee : $data['amount'];
@@ -548,6 +589,13 @@ class PayController extends Controller
             $lockedUser = User::where('id', $user->id)->lockForUpdate()->first();
             if (!$lockedUser) {
                 return ['code' => 201, 'message' => 'login expired'];
+            }
+            $daily_withdraw_times = SystemConfig::getValue('daily_withdraw_times');
+            if ($daily_withdraw_times !== '' && (int) $daily_withdraw_times > 0) {
+                $count = Withdraw::where('user_id', $lockedUser->id)->whereDate('created_at', date('Y-m-d'))->count();
+                if ($count >= (int) $daily_withdraw_times) {
+                    return ['code' => 216, 'message' => '每日提现次数已达上限'];
+                }
             }
             if ($data['amount'] > $lockedUser->balance) {
                 return ['code' => 208, 'message' => ''];
@@ -600,53 +648,6 @@ class PayController extends Controller
         }
 
         return $this->returnMsg($withdraw ? 200 : 500);
-        //提现
-        $card = UserCard::find($data['bank']);
-        // return $this->returnMsg(200,$card);
-        $order_no = time().rand(1000,9999);
-        if ($card['bank'] == 'ZGPay') {
-            $merchant_id = SystemConfig::where('key','merchant_id')->value('value') ?? '';
-            $api_secret = SystemConfig::where('key','zgp_secret')->value('value') ?? '';
-            $zgpay = new Zgpay($merchant_id,$api_secret);
-            $res = $zgpay->withdraw($order_no,$data['amount'],$card['bank_owner'],$card['bank_no']);
-            $res = json_decode($res,true);
-            if ($res['code'] != 200) return $this->returnMsg(500);
-        }
-        $user->balance -= $data['amount'];
-        $user->save();
-         $type = 1;
-         $cash_fee = 0;
-        // 插入提现记录
-        $usdt_rate = SystemConfig::getValue('withdraw_usdt_rate');
-        if($card['bank']=='USDT' && ($card['bank_address']=='TRC20' || $card['bank_owner']=='TRC20')){
-            $type = 2;
-            $cash_fee = SystemConfig::getValue('withdraw_cash_fee') ?? 0;
-            $real_money = sprintf('%.2f',$data['amount'] / $usdt_rate);
-            $real_money -= $cash_fee;
-        }elseif($card['bank']=='USDT' && ($card['bank_address']=='ERC20' || $card['bank_owner']=='ERC20')){
-             $type = 3;
-             $cash_fee = SystemConfig::getValue('withdraw_fee_usdt_erc') ?? 0;
-            $real_money = sprintf('%.2f',$data['amount'] / $usdt_rate);
-            $real_money -= $cash_fee;
-        } elseif ($card['bank'] == 'ebpay') {
-            $type = 4;
-            $real_money = $data['amount'];
-        }else {
-            $real_money = $data['amount'];
-        }
-        
-        $item = [
-            'order_no' => $order_no,
-            'type' => $type,
-            'card_id' => $data['bank'],
-            'user_id' => $user->id,
-            'amount' => $data['amount'],
-            'cash_fee' => $cash_fee,
-            'real_money' => $real_money,
-            'usdt_rate' => ($type == 1) ? 0 : $usdt_rate
-        ];
-        $res = Withdraw::create($item);
-        return $this->returnMsg($res ? 200 : 500);
     }
 
     /**
@@ -1237,10 +1238,10 @@ class PayController extends Controller
 
     public function getPayWay()
     {
-        $wxinfo = CodePay::where('status',1)->where('id',3)->count();
-        $usdtinfo = CodePay::where('status',1)->where('id',5)->count();
-        $usdtinfo_erc = CodePay::where('status',1)->where('id',7)->count();
-        $alipayinfo = CodePay::where('status',1)->where('id',4)->count();
+        $wxinfo = $this->findActiveCodePay(['wechat', 3]) ? 1 : 0;
+        $usdtinfo = $this->findActiveCodePay(['trc20', 5]) ? 1 : 0;
+        $usdtinfo_erc = $this->findActiveCodePay(['erc20', 7]) ? 1 : 0;
+        $alipayinfo = $this->findActiveCodePay(['alipay', 4]) ? 1 : 0;
         $cardlist = PaySetting::where('state',1)->get();
         $wechat = $wxinfo ? 1 : 0;
         $usdt = ($usdtinfo || $usdtinfo_erc) ? 1 : 0;

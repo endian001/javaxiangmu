@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Wap;
 
 use App\Http\Controllers\Controller;
 use App\Models\Activity;
+use App\Models\ActivityApply;
 use App\Models\AgentApply;
 use App\Models\Bank;
 use App\Models\PaySetting;
@@ -22,6 +23,7 @@ use App\Models\Usersmoney;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use App\Services\TgService;
 use App\Models\Template;
 use App\Models\CodePay;
@@ -87,44 +89,82 @@ class IndexController extends Controller
     }
     
 
-    public function doactivity(Request $request){
-
-        if ($request->isMethod('post')) {
-            $data = $request->all();
-            if(empty($data['account'])){
-                return $this->returnMsg(202, '', '请输入会员帐号');
-            }
-
-            $userinfo = Users::where('username', $data['account'])->first();
-            if(empty($userinfo)){
-                return $this->returnMsg(202, '', '会员帐号输入错误');
-            }
-
-            $activity = Activity::where('id', $data['activityid'])->first();
-            if(empty($activity)){
-                return $this->returnMsg(202, '', '活动不存在');
-            }
-
-            $isapple = ActivityApply::where("user_id",$userinfo->id)->first();
-            if($isapple){
-                return $this->returnMsg(202, '', '您已经申请过，无须重复申请');
-            }
-
-            $arr['activity_id'] = $data['activityid'];
-            $arr['user_id'] = $userinfo->id;
-            $arr['state'] = 1;
-            $arr['created_at'] = time();
-            $arr['updated_at'] = time();
-            if(ActivityApply::create($arr)){
-                return $this->returnMsg(200, '', '申请成功');
-            }else{
-                return $this->returnMsg(200, '', '申请失败');
-            }
-
+    public function doactivity(Request $request)
+    {
+        if (!$request->isMethod('post')) {
+            return null;
         }
 
+        $data = $request->all();
+        $activityId = (int)($data['activityid'] ?? ($data['activity_id'] ?? ($data['id'] ?? 0)));
+        if ($activityId <= 0) {
+            return $this->returnMsg(202, '', 'activity id required');
+        }
+        if (empty($data['account'])) {
+            return $this->returnMsg(202, '', 'account required');
+        }
+
+        $userinfo = Users::where('username', $data['account'])->first();
+        if (empty($userinfo)) {
+            return $this->returnMsg(202, '', 'member account not found');
+        }
+
+        $activity = Activity::where('id', $activityId)->first();
+        if (empty($activity)) {
+            return $this->returnMsg(202, '', 'activity not found');
+        }
+        if ((int)($activity->state ?? 0) !== 1 || (int)($activity->can_apply ?? 0) !== 1) {
+            return $this->returnMsg(202, '', 'activity can not apply');
+        }
+
+        if ($hit = $this->activityBlacklistHit($userinfo, $activityId)) {
+            return $this->returnMsg(202, '', $this->activityBlacklistMessage($hit, 'activity can not apply'));
+        }
+
+        $couponCheck = $this->validateActivityCouponForApply($request, $userinfo, $activityId);
+        if (!$couponCheck['ok']) {
+            return $this->returnMsg(202, '', $couponCheck['message']);
+        }
+
+        $isapple = ActivityApply::where('user_id', $userinfo->id)
+            ->where('activity_id', $activityId)
+            ->first();
+        if ($isapple) {
+            return $this->returnMsg(202, '', 'activity application already submitted');
+        }
+
+        try {
+            $created = DB::transaction(function () use ($activityId, $userinfo, $couponCheck) {
+                $created = ActivityApply::create([
+                    'activity_id' => $activityId,
+                    'user_id' => $userinfo->id,
+                    'state' => 1,
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s'),
+                ]);
+
+                if (!$this->markActivityCouponUsed($couponCheck['coupon'], $userinfo)) {
+                    throw new \RuntimeException('activity coupon consume failed');
+                }
+
+                return $created;
+            });
+        } catch (\Throwable $e) {
+            if (stripos($e->getMessage(), 'Duplicate') !== false || stripos($e->getMessage(), 'activity_apply_activity_id_user_id_unique') !== false) {
+                return $this->returnMsg(202, '', 'activity application already submitted');
+            }
+
+            \Illuminate\Support\Facades\Log::error('activity apply failed', [
+                'user_id' => $userinfo->id,
+                'activity_id' => $activityId,
+                'message' => $e->getMessage(),
+            ]);
+
+            return $this->returnMsg(500, '', 'activity apply failed');
+        }
+
+        return $this->returnMsg($created ? 200 : 500, '', $created ? 'activity apply success' : 'activity apply failed');
     }
-    
     public function recharge()
     {
         $my_cards = UserCard::where('user_id',Auth::id())->get();

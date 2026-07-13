@@ -25,17 +25,17 @@ class ActivityController extends AdminController
             $grid->column('sort_order', 'Sort')->sortable();
             $grid->column('starts_at', 'Start');
             $grid->column('ends_at', 'End');
-            $grid->column('is_popup', 'Home popup')->using([1 => 'Yes', 0 => 'No']);
-            $grid->column('can_apply', 'Can apply')->using([1 => 'Yes', 0 => 'No']);
-            $grid->column('state', 'Desktop')->using($this->status);
-            $grid->column('app_state', 'Mobile')->using($this->status);
+            $grid->column('is_popup', '首页弹窗')->using([1 => '开启', 0 => '关闭']);
+            $grid->column('can_apply', '可申请')->using([1 => '是', 0 => '否']);
+            $grid->column('state', '电脑端')->using($this->status);
+            $grid->column('app_state', '手机端')->using($this->status);
             $grid->column('created_at');
 
             $grid->filter(function (Grid\Filter $filter) {
                 $filter->equal('id');
-                $filter->equal('state', 'Desktop')->select($this->status);
-                $filter->equal('app_state', 'Mobile')->select($this->status);
-                $filter->equal('is_popup', 'Home popup')->select([1 => 'Yes', 0 => 'No']);
+                $filter->equal('state', '电脑端')->select($this->status);
+                $filter->equal('app_state', '手机端')->select($this->status);
+                $filter->equal('is_popup', '首页弹窗')->select([1 => '开启', 0 => '关闭']);
             });
         });
     }
@@ -60,6 +60,7 @@ class ActivityController extends AdminController
                 'popup_frequency',
                 'popup_delay_seconds',
                 'action_url',
+                'button_text',
                 'requires_auth',
                 'can_apply',
                 'state',
@@ -99,19 +100,20 @@ class ActivityController extends AdminController
             $form->number('sort_order', 'Sort')->default(0);
             $form->datetime('starts_at', 'Start time');
             $form->datetime('ends_at', 'End time');
-            $form->radio('is_popup', 'Home popup')->options([1 => 'Yes', 0 => 'No'])->default(0);
-            $form->select('popup_frequency', 'Popup frequency')->options([
-                'always' => 'Every visit',
-                'session' => 'Once per session',
-                'daily' => 'Once per day',
-                'once' => 'Only once',
-            ])->default('daily');
-            $form->number('popup_delay_seconds', 'Popup delay seconds')->default(0);
-            $form->image('popup_image', 'Desktop popup image')->uniqueName();
-            $form->image('app_popup_image', 'Mobile popup image')->uniqueName();
+            $form->radio('is_popup', '首页弹窗')->options([1 => '开启', 0 => '关闭'])->default(0);
+            $form->select('popup_frequency', '弹窗频率')->options([
+                'always' => '每次访问都弹',
+                'session' => '每次会话一次',
+                'daily' => '每天一次',
+                'once' => '仅首次打开一次',
+            ])->default('once');
+            $form->number('popup_delay_seconds', '弹窗延迟秒数')->default(0);
+            $form->image('popup_image', '电脑端弹窗图')->uniqueName();
+            $form->image('app_popup_image', '手机端弹窗图')->uniqueName();
             $form->image('detail_image', 'Desktop detail image')->uniqueName();
             $form->image('app_detail_image', 'Mobile detail image')->uniqueName();
             $form->text('action_url', 'Action URL');
+            $form->text('button_text', 'Button text');
             $form->radio('requires_auth', 'Action requires login')->options([1 => 'Yes', 0 => 'No'])->default(0);
             $form->radio('can_apply', 'Can apply')->options([1 => 'Yes', 0 => 'No'])->default(1);
             $form->radio('state', 'Desktop status')->options($this->status)->default(1);
@@ -120,7 +122,7 @@ class ActivityController extends AdminController
             $form->display('updated_at');
 
             $form->saving(function (Form $form) {
-                $contentFields = ['type', 'title', 'entitle', 'content', 'encontent', 'memo', 'enmemo', 'apply_count', 'banner', 'app_img', 'sort_order', 'starts_at', 'ends_at', 'popup_frequency', 'popup_delay_seconds', 'popup_image', 'app_popup_image', 'detail_image', 'app_detail_image', 'action_url'];
+                $contentFields = ['type', 'title', 'entitle', 'content', 'encontent', 'memo', 'enmemo', 'apply_count', 'banner', 'app_img', 'sort_order', 'starts_at', 'ends_at', 'popup_frequency', 'popup_delay_seconds', 'popup_image', 'app_popup_image', 'detail_image', 'app_detail_image', 'action_url', 'button_text'];
                 $switchFields = ['can_apply', 'state', 'app_state', 'is_popup', 'requires_auth'];
 
                 if ($form->isCreating() || OpsChangeAudit::hasAnyChanged($form, $contentFields)) {
@@ -144,14 +146,15 @@ class ActivityController extends AdminController
                     'sort_order' => 'sort order',
                     'starts_at' => 'start time',
                     'ends_at' => 'end time',
-                    'is_popup' => 'home popup',
-                    'popup_frequency' => 'popup frequency',
-                    'popup_delay_seconds' => 'popup delay',
-                    'popup_image' => 'desktop popup image',
-                    'app_popup_image' => 'mobile popup image',
+                    'is_popup' => '首页弹窗',
+                    'popup_frequency' => '弹窗频率',
+                    'popup_delay_seconds' => '弹窗延迟',
+                    'popup_image' => '电脑端弹窗图',
+                    'app_popup_image' => '手机端弹窗图',
                     'detail_image' => 'desktop detail image',
                     'app_detail_image' => 'mobile detail image',
                     'action_url' => 'action url',
+                    'button_text' => 'button text',
                     'requires_auth' => 'requires login',
                     'can_apply' => 'can apply',
                     'state' => 'desktop state',

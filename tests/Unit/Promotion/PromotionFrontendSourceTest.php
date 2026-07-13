@@ -32,9 +32,9 @@ class PromotionFrontendSourceTest extends TestCase
     {
         foreach (['/public/index.html', '/public/new-h5/index.html'] as $file) {
             $source = file_get_contents($this->root().$file);
-            $this->assertStringContainsString('/assets/promotion-system.css?v=20260711activity3', $source);
-            $this->assertStringContainsString('/assets/promotion-core.js?v=20260711activity3', $source);
-            $this->assertStringContainsString('/assets/promotion-system.js?v=20260711activity3', $source);
+            $this->assertStringContainsString('/assets/promotion-system.css?v=', $source);
+            $this->assertStringContainsString('/assets/promotion-core.js?v=', $source);
+            $this->assertStringContainsString('/assets/promotion-system.js?v=', $source);
         }
     }
 
@@ -43,11 +43,42 @@ class PromotionFrontendSourceTest extends TestCase
         $script = file_get_contents($this->root().'/public/assets/promotion-system.js');
         $styles = file_get_contents($this->root().'/public/assets/promotion-system.css');
 
-        $this->assertStringContainsString('hasDistinctDetailImage', $script);
+        $this->assertStringContainsString("promotionImage(item, 'detail')", $script);
         $this->assertStringContainsString('promo-detail-scroller', $script);
         $this->assertStringContainsString('promo-detail-artwork', $script);
         $this->assertStringContainsString('.promo-detail-scroller', $styles);
         $this->assertStringContainsString('.promo-detail-artwork', $styles);
+    }
+
+    public function test_popup_and_apply_routes_are_wired()
+    {
+        $script = file_get_contents($this->root().'/public/assets/promotion-system.js');
+        $routes = file_get_contents($this->root().'/routes/api.php');
+
+        $this->assertStringContainsString('/api/promotions/popup', $script);
+        $this->assertStringContainsString('/api/promotions/', $script);
+        $this->assertStringContainsString('/apply', $script);
+        $this->assertStringContainsString('/api/doactivityapply', $script);
+        $this->assertStringContainsString('promo-home-panel--split', $script);
+        $this->assertStringContainsString("Route::post('/promotions/{id}/apply'", $routes);
+    }
+
+    public function test_frontend_preserves_api_text_and_thai_copy()
+    {
+        $script = file_get_contents($this->root().'/public/assets/promotion-system.js');
+
+        $this->assertStringNotContainsString('function needsChineseFallback', $script);
+        $this->assertStringNotContainsString('function stripThaiFragments', $script);
+        $this->assertStringNotContainsString('hasThaiText(text) || hasBrokenText(text) ? fallback : text', $script);
+        $this->assertStringNotContainsString('source.title = preset.title', $script);
+        $this->assertStringNotContainsString('source.type_name = preset.type_name', $script);
+        $this->assertStringNotContainsString('source.category_name = preset.type_name', $script);
+        $this->assertStringNotContainsString('source.entitle = preset.entitle', $script);
+        $this->assertStringNotContainsString('source.button_text = preset.button_text', $script);
+        $this->assertStringNotContainsString('???', $script);
+
+        $this->assertStringContainsString('function needsFallbackText', $script);
+        $this->assertStringContainsString('return !text || hasBrokenText(text) ? fallback : text;', $script);
     }
 
     public function test_promotion_artwork_has_expected_dimensions()

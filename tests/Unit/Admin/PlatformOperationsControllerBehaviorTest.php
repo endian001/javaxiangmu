@@ -140,6 +140,31 @@ class PlatformOperationsControllerBehaviorTest extends TestCase
         ], DB::table('admin_audit_logs')->orderBy('id')->pluck('action')->all());
     }
 
+    public function test_record_status_rejects_values_that_do_not_match_the_page_contract()
+    {
+        $create = $this->request('POST', [
+            'title' => 'Status contract',
+            'status' => 'enabled',
+            'sort_order' => 1,
+            'domain' => 'https://status.example.com',
+            'line_type' => 'primary',
+        ]);
+        $id = $this->controller()
+            ->saveRecord($create, '36000')
+            ->getData(true)['data']['id'];
+
+        $status = $this->request('POST', [
+            'ids' => [$id],
+            'status' => 'completed',
+        ]);
+        $response = $this->controller()->changeStatus($status, '36000');
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame('enabled', DB::table('admin_module_records')
+            ->where('id', $id)
+            ->value('status'));
+    }
+
     public function test_transaction_record_can_be_created_and_exported()
     {
         $request = $this->request('POST', [
@@ -174,6 +199,22 @@ class PlatformOperationsControllerBehaviorTest extends TestCase
             $payload['data']['business_no'],
             $export->getContent()
         );
+    }
+
+    public function test_transaction_status_rejects_enable_disable_values()
+    {
+        $request = $this->request('POST', [
+            'transaction_type' => 'platform_fee_recharge',
+            'account_name' => 'Platform account',
+            'account_no' => 'INTERNAL-STATUS',
+            'amount' => '10',
+            'status' => 'enabled',
+        ]);
+
+        $response = $this->controller()->saveRecord($request, '90040');
+
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertSame(0, DB::table('admin_module_transactions')->count());
     }
 
     public function test_legacy_payment_type_actions_use_the_real_table()

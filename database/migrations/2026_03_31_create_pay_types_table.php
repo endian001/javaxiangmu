@@ -4,15 +4,14 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreatePayTypesTable extends Migration
+class PayTypesTable extends Migration
 {
-    /**
-     * Run the migrations.
-     *
-     * @return void
-     */
     public function up()
     {
+        if (Schema::hasTable('pay_types')) {
+            return;
+        }
+
         Schema::create('pay_types', function (Blueprint $table) {
             $table->bigIncrements('id');
             $table->string('name', 50)->comment('支付类型名称');
@@ -23,11 +22,6 @@ class CreatePayTypesTable extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     *
-     * @return void
-     */
     public function down()
     {
         Schema::dropIfExists('pay_types');

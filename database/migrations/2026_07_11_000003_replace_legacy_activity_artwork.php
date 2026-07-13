@@ -10,40 +10,43 @@ class ReplaceLegacyActivityArtwork extends Migration
         $now = date('Y-m-d H:i:s');
 
         DB::table('activities')->where('id', 15)->update([
-            'title' => 'ต้อนรับสมาชิกใหม่',
-            'entitle' => 'ต้อนรับสมาชิกใหม่',
-            'content' => '<p>สมัครสมาชิก ฝากเงินครั้งแรก และรับโบนัสต้อนรับตามเงื่อนไขของกิจกรรม</p>',
-            'encontent' => '<p>สมัครสมาชิก ฝากเงินครั้งแรก และรับโบนัสต้อนรับตามเงื่อนไขของกิจกรรม</p>',
-            'memo' => '<p>สมาชิกหนึ่งคนรับสิทธิ์ได้หนึ่งครั้ง กรุณาตรวจสอบยอดฝากและยอดเทิร์นก่อนเข้าร่วม</p>',
-            'enmemo' => '<p>สมาชิกหนึ่งคนรับสิทธิ์ได้หนึ่งครั้ง กรุณาตรวจสอบยอดฝากและยอดเทิร์นก่อนเข้าร่วม</p>',
+            'title' => 'ต้อนรับสมาชิกใหม่ โบนัสสูงสุด 1,888',
+            'entitle' => 'ต้อนรับสมาชิกใหม่ โบนัสสูงสุด 1,888',
+            'content' => '<p>สมัครสมาชิกใหม่ รับสิทธิ์โบนัสต้อนรับและเริ่มเล่นเกมยอดนิยมได้ทันที</p>',
+            'encontent' => '<p>สมัครสมาชิกใหม่ รับสิทธิ์โบนัสต้อนรับและเริ่มเล่นเกมยอดนิยมได้ทันที</p>',
+            'memo' => '<p>สิทธิ์นี้สำหรับสมาชิกใหม่เท่านั้น กรุณาอ่านเงื่อนไขก่อนกดรับโปรโมชั่น</p>',
+            'enmemo' => '<p>สิทธิ์นี้สำหรับสมาชิกใหม่เท่านั้น กรุณาอ่านเงื่อนไขก่อนกดรับโปรโมชั่น</p>',
             'banner' => '/assets/promotions/welcome-banner.png',
             'app_img' => '/assets/promotions/welcome-banner.png',
             'popup_image' => '/assets/promotions/welcome-banner.png',
             'app_popup_image' => '/assets/promotions/welcome-banner.png',
             'detail_image' => '/assets/promotions/welcome-detail.png',
             'app_detail_image' => '/assets/promotions/welcome-detail.png',
+            'button_text' => 'รับโปรโมชั่น',
             'updated_at' => $now,
         ]);
 
         DB::table('activities')->where('id', 14)->update([
-            'title' => 'ฝากเงินรับโบนัสพิเศษ',
-            'entitle' => 'ฝากเงินรับโบนัสพิเศษ',
-            'content' => '<p>เติมเครดิตตามยอดที่กำหนดและรับโบนัสเพิ่มสำหรับการเล่นเกมที่ร่วมรายการ</p>',
-            'encontent' => '<p>เติมเครดิตตามยอดที่กำหนดและรับโบนัสเพิ่มสำหรับการเล่นเกมที่ร่วมรายการ</p>',
-            'memo' => '<p>โบนัสและยอดเทิร์นขึ้นอยู่กับช่วงเวลาและประเภทเกม กรุณาอ่านรายละเอียดก่อนรับสิทธิ์</p>',
-            'enmemo' => '<p>โบนัสและยอดเทิร์นขึ้นอยู่กับช่วงเวลาและประเภทเกม กรุณาอ่านรายละเอียดก่อนรับสิทธิ์</p>',
+            'title' => 'ฝากครั้งแรก รับโบนัสพิเศษ',
+            'entitle' => 'ฝากครั้งแรก รับโบนัสพิเศษ',
+            'content' => '<p>เติมเงินผ่านช่องทางที่รองรับ แล้วรับโบนัสฝากเงินตามเงื่อนไขของกิจกรรม</p>',
+            'encontent' => '<p>เติมเงินผ่านช่องทางที่รองรับ แล้วรับโบนัสฝากเงินตามเงื่อนไขของกิจกรรม</p>',
+            'memo' => '<p>โบนัสขึ้นอยู่กับยอดฝากและเงื่อนไขเทิร์นโอเวอร์ หากต้องการความช่วยเหลือให้ติดต่อฝ่ายบริการลูกค้า</p>',
+            'enmemo' => '<p>โบนัสขึ้นอยู่กับยอดฝากและเงื่อนไขเทิร์นโอเวอร์ หากต้องการความช่วยเหลือให้ติดต่อฝ่ายบริการลูกค้า</p>',
             'banner' => '/assets/promotions/deposit-banner.png',
             'app_img' => '/assets/promotions/deposit-banner.png',
             'popup_image' => '/assets/promotions/deposit-banner.png',
             'app_popup_image' => '/assets/promotions/deposit-banner.png',
             'detail_image' => '/assets/promotions/deposit-detail.png',
             'app_detail_image' => '/assets/promotions/deposit-detail.png',
+            'button_text' => 'เติมเงินทันที',
+            'action_url' => '/member/recharge',
             'updated_at' => $now,
         ]);
     }
 
     public function down()
     {
-        // Keep the Thai artwork in place instead of restoring the legacy Chinese images.
+        // Keep the cleaned artwork and Thai promotion copy in place.
     }
 }
