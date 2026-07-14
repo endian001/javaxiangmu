@@ -12,37 +12,37 @@
   };
 
   var copy = {
-    pageTitle: 'Promotion Center - TH2.VIP',
-    brandSub: 'Online games',
-    home: 'Home',
-    games: 'Games',
-    promotions: 'Promotions',
-    mobile: 'Mobile',
-    login: 'Login',
-    register: 'Register',
-    heroTitle: 'Promotions and member rewards',
-    heroText: 'Latest TH2.VIP campaigns are listed here. Open a campaign to view details and claim rewards.',
-    depositNow: 'Deposit now',
-    memberBonus: 'Member rewards',
-    bonusNote: 'Claim according to campaign rules',
-    featureTitle: 'Featured promotions',
-    all: 'All',
-    countSuffix: 'items',
-    loading: 'Loading promotions...',
-    loadError: 'Promotions failed to load. Please try again later.',
-    empty: 'No promotions in this category',
-    notFound: 'Promotion not found',
-    close: 'Close',
-    rules: 'Promotion rules',
-    details: 'View details',
-    apply: 'Claim promotion',
-    applySuccess: 'Promotion request submitted',
-    applyFailed: 'Submit failed. Please try again later.',
-    support: 'Contact support',
-    allPromotions: 'All promotions',
-    popupText: 'Member promotion. Open the details to claim it.',
-    fallbackContent: '<p>Select a promotion and submit a request according to the rules. Support will review the request.</p>',
-    fallbackMemo: '<p>Please read the rules before claiming. Contact support if you need help.</p>'
+    pageTitle: '\u6d3b\u52a8\u4e2d\u5fc3 - TH2.VIP',
+    brandSub: '\u5728\u7ebf\u6e38\u620f',
+    home: '\u9996\u9875',
+    games: '\u6e38\u620f',
+    promotions: '\u6d3b\u52a8',
+    mobile: '\u624b\u673a\u7248',
+    login: '\u767b\u5f55',
+    register: '\u6ce8\u518c',
+    heroTitle: '\u6d3b\u52a8\u4e0e\u4f1a\u5458\u5956\u52b1',
+    heroText: '\u6700\u65b0\u6d3b\u52a8\u90fd\u5728\u8fd9\u91cc\uff0c\u6253\u5f00\u6d3b\u52a8\u67e5\u770b\u8be6\u60c5\u5e76\u6309\u89c4\u5219\u9886\u53d6\u5956\u52b1\u3002',
+    depositNow: '\u7acb\u5373\u5145\u503c',
+    memberBonus: '\u4f1a\u5458\u5956\u52b1',
+    bonusNote: '\u6309\u6d3b\u52a8\u89c4\u5219\u9886\u53d6',
+    featureTitle: '\u70ed\u95e8\u6d3b\u52a8',
+    all: '\u5168\u90e8',
+    countSuffix: '\u4e2a\u6d3b\u52a8',
+    loading: '\u6b63\u5728\u52a0\u8f7d\u6d3b\u52a8...',
+    loadError: '\u6d3b\u52a8\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002',
+    empty: '\u8be5\u5206\u7c7b\u6682\u65e0\u6d3b\u52a8',
+    notFound: '\u6d3b\u52a8\u4e0d\u5b58\u5728',
+    close: '\u5173\u95ed',
+    rules: '\u6d3b\u52a8\u89c4\u5219',
+    details: '\u67e5\u770b\u8be6\u60c5',
+    apply: '\u7533\u8bf7\u6d3b\u52a8',
+    applySuccess: '\u6d3b\u52a8\u7533\u8bf7\u5df2\u63d0\u4ea4',
+    applyFailed: '\u63d0\u4ea4\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5\u3002',
+    support: '\u8054\u7cfb\u5ba2\u670d',
+    allPromotions: '\u5168\u90e8\u6d3b\u52a8',
+    popupText: '\u4f1a\u5458\u6d3b\u52a8\uff0c\u6253\u5f00\u8be6\u60c5\u540e\u6309\u89c4\u5219\u9886\u53d6\u3002',
+    fallbackContent: '<p>\u9009\u62e9\u8981\u53c2\u52a0\u7684\u6d3b\u52a8\uff0c\u5e76\u6309\u9875\u9762\u89c4\u5219\u63d0\u4ea4\u7533\u8bf7\uff0c\u7cfb\u7edf\u4f1a\u4ea4\u7ed9\u5ba2\u670d\u5ba1\u6838\u3002</p>',
+    fallbackMemo: '<p>\u7533\u8bf7\u524d\u8bf7\u9605\u8bfb\u6d3b\u52a8\u89c4\u5219\uff0c\u5982\u6709\u7591\u95ee\u8bf7\u8054\u7cfb\u5ba2\u670d\u3002</p>'
   };
 
   var thaiCopy = {
@@ -82,7 +82,15 @@
 
   function api(path, options) {
     var separator = path.indexOf('?') === -1 ? '?' : '&';
-    return requestJson(path + separator + 'channel=' + encodeURIComponent(state.channel), options || {});
+    return requestJson(path + separator + 'channel=' + encodeURIComponent(state.channel) + '&locale=' + encodeURIComponent(currentLocale()), options || {});
+  }
+
+  function currentLocale() {
+    try {
+      return localStorage.getItem('th2w:locale') || 'zh-CN';
+    } catch (error) {
+      return 'zh-CN';
+    }
   }
 
   function requestJson(url, options) {
@@ -233,41 +241,41 @@
       {
         id: 'fallback-welcome',
         type: 1,
-        type_name: 'New member bonus',
-        title: 'Welcome gift for new members',
+        type_name: '\u65b0\u4eba\u5956\u52b1',
+        title: '\u65b0\u4f1a\u5458\u6b22\u8fce\u793c',
         entitle: 'New member bonus',
-        content: '<p>Register and complete the first deposit to claim the new member reward.</p>',
-        memo: '<p>Only real member accounts are eligible. Final approval is based on support review.</p>',
+        content: '<p>\u6ce8\u518c\u5e76\u5b8c\u6210\u9996\u5b58\u540e\uff0c\u53ef\u6309\u6d3b\u52a8\u89c4\u5219\u9886\u53d6\u65b0\u4eba\u5956\u52b1\u3002</p>',
+        memo: '<p>\u4ec5\u9650\u771f\u5b9e\u4f1a\u5458\u8d26\u53f7\u53c2\u4e0e\uff0c\u6700\u7ec8\u4ee5\u5ba2\u670d\u5ba1\u6838\u4e3a\u51c6\u3002</p>',
         banner_image: '/assets/promotions/welcome-banner.png',
         card_image: '/assets/promotions/welcome-banner.png',
         popup_image: '/assets/promotions/welcome-banner.png',
-        button_text: 'Claim promotion'
+        button_text: '\u7533\u8bf7\u6d3b\u52a8'
       },
       {
         id: 'fallback-deposit',
         type: 2,
-        type_name: 'Deposit promotion',
-        title: 'Daily deposit rewards',
+        type_name: '\u5145\u503c\u6d3b\u52a8',
+        title: '\u6bcf\u65e5\u5145\u503c\u5956\u52b1',
         entitle: 'Deposit bonus',
-        content: '<p>After depositing, members can submit a request for extra rewards according to the campaign rules.</p>',
-        memo: '<p>Turnover requirements must be completed before withdrawal.</p>',
+        content: '<p>\u4f1a\u5458\u5145\u503c\u540e\u53ef\u6309\u6d3b\u52a8\u89c4\u5219\u63d0\u4ea4\u989d\u5916\u5956\u52b1\u7533\u8bf7\u3002</p>',
+        memo: '<p>\u63d0\u73b0\u524d\u9700\u6309\u6d3b\u52a8\u89c4\u5219\u5b8c\u6210\u6d41\u6c34\u8981\u6c42\u3002</p>',
         banner_image: '/assets/promotions/deposit-banner.png',
         card_image: '/assets/promotions/deposit-banner.png',
         detail_image: '/assets/promotions/deposit-detail.png',
-        button_text: 'Deposit now'
+        button_text: '\u7acb\u5373\u5145\u503c'
       },
       {
         id: 'fallback-referral',
         type: 3,
-        type_name: 'Invite friends',
-        title: 'Invite friends and earn rewards',
+        type_name: '\u9080\u8bf7\u597d\u53cb',
+        title: '\u9080\u8bf7\u597d\u53cb\u8d5a\u53d6\u5956\u52b1',
         entitle: 'Referral bonus',
-        content: '<p>Invite friends to register and meet the requirements. The inviter can submit a reward request.</p>',
-        memo: '<p>Each invited friend can only count once as a valid referral.</p>',
+        content: '<p>\u9080\u8bf7\u597d\u53cb\u6ce8\u518c\u5e76\u8fbe\u6210\u8981\u6c42\u540e\uff0c\u9080\u8bf7\u4eba\u53ef\u63d0\u4ea4\u5956\u52b1\u7533\u8bf7\u3002</p>',
+        memo: '<p>\u6bcf\u4f4d\u88ab\u9080\u8bf7\u597d\u53cb\u4ec5\u53ef\u8ba1\u7b97\u4e00\u6b21\u6709\u6548\u9080\u8bf7\u3002</p>',
         banner_image: '/assets/promotions/referral-banner.webp',
         card_image: '/assets/promotions/referral-banner.webp',
         detail_image: '/assets/promotions/referral-detail.jpg',
-        button_text: 'View details'
+        button_text: '\u67e5\u770b\u8be6\u60c5'
       }
     ];
   }
@@ -657,15 +665,7 @@
   }
 
   function copyForPromotion(item) {
-    return hasThaiText([
-      item && item.type_name,
-      item && item.category_name,
-      item && item.title,
-      item && item.entitle,
-      item && item.button_text,
-      item && item.content,
-      item && item.memo
-    ].join(' ')) ? Object.assign({}, copy, thaiCopy) : copy;
+    return /^th/i.test(currentLocale()) ? Object.assign({}, copy, thaiCopy) : copy;
   }
 
   function hasThaiText(value) {
@@ -749,7 +749,7 @@
   }
 
   function promotionTitle(item) {
-    return cleanText(item && (item.entitle || item.title || item.name), 'TH2.VIP promotion');
+    return cleanText(item && (item.title || item.entitle || item.name), '\u6d3b\u52a8\u4e2d\u5fc3');
   }
 
   function promotionTypeName(item) {
@@ -757,11 +757,11 @@
   }
 
   function promotionContent(item) {
-    return cleanRichText(item && (item.encontent || item.content), copy.fallbackContent);
+    return cleanRichText(item && (item.content || item.encontent), copy.fallbackContent);
   }
 
   function promotionMemo(item) {
-    return cleanRichText(item && (item.enmemo || item.memo), '');
+    return cleanRichText(item && (item.memo || item.enmemo), '');
   }
 
   function fallbackPromotionIndex(item) {
@@ -773,11 +773,11 @@
   }
 
   function fallbackPromotionType(item) {
-    return ['New member bonus', 'Deposit promotion', 'Invite friends'][fallbackPromotionIndex(item)] || copy.promotions;
+    return ['\u65b0\u4eba\u5956\u52b1', '\u5145\u503c\u6d3b\u52a8', '\u9080\u8bf7\u597d\u53cb'][fallbackPromotionIndex(item)] || copy.promotions;
   }
 
   function fallbackPromotionTitle(item) {
-    return ['Welcome gift for new members', 'Daily deposit rewards', 'Invite friends and earn rewards'][fallbackPromotionIndex(item)] || 'TH2.VIP promotion';
+    return ['\u65b0\u4f1a\u5458\u6b22\u8fce\u793c', '\u6bcf\u65e5\u5145\u503c\u5956\u52b1', '\u9080\u8bf7\u597d\u53cb\u8d5a\u53d6\u5956\u52b1'][fallbackPromotionIndex(item)] || '\u6d3b\u52a8\u4e2d\u5fc3';
   }
 
   function buttonText(item) {

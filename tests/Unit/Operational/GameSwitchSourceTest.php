@@ -27,9 +27,7 @@ class GameSwitchSourceTest extends TestCase
         $app = file_get_contents($this->root().'/app/Http/Controllers/Api/AppController.php');
 
         foreach ([
-            $this->methodBody($api, 'getGameList'),
-            $this->methodBody($api, 'getAllPlat'),
-            $this->methodBody($api, 'getAllGameList'),
+            $this->methodBody($api, 'cachedPublicGameList'),
             $this->methodBody($api, 'gamelistBycode'),
             $this->methodBody($app, 'hall_list'),
         ] as $method) {
@@ -37,6 +35,9 @@ class GameSwitchSourceTest extends TestCase
             $this->assertStringContainsString("where('site_state',1)", $method);
             $this->assertStringContainsString("where('app_state',1)", $method);
         }
+
+        $this->assertStringContainsString('cachedPublicGameList($platform, $category, false)', $api);
+        $this->assertStringContainsString('cachedPublicGameList($platform, $category, true)', $api);
     }
 
     public function test_web_game_category_pages_use_shared_visible_query()

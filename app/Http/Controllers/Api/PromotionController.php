@@ -23,6 +23,7 @@ class PromotionController extends Controller
 
     public function categories(Request $request)
     {
+        $locale = $this->localeFromRequest($request);
         $rows = ActivityType::query()
             ->when(Schema::hasColumn('activity_types', 'state'), function ($query) {
                 return $query->where('state', 1);
@@ -42,7 +43,7 @@ class PromotionController extends Controller
         ]];
 
         foreach ($rows as $row) {
-            $publicName = $this->activityTypePublicName($row);
+            $publicName = $this->activityTypePublicName($row, $locale);
             $items[] = [
                 'id' => (int) $row->id,
                 'name' => $publicName,
@@ -59,6 +60,7 @@ class PromotionController extends Controller
     public function index(Request $request)
     {
         $channel = $this->channel($request);
+        $locale = $this->localeFromRequest($request);
         $type = (int) $request->input('type', 0);
         $items = Activity::with('type_data')
             ->when($type > 0, function ($query) use ($type) {
@@ -70,7 +72,7 @@ class PromotionController extends Controller
         $visible = $this->service->visible($items, $channel);
         $rows = [];
         foreach ($visible as $activity) {
-            $rows[] = $this->formatActivity($activity, $channel, false);
+            $rows[] = $this->formatActivity($activity, $channel, false, $locale);
         }
 
         return $this->returnMsg(200, [
@@ -83,23 +85,25 @@ class PromotionController extends Controller
     public function show(Request $request, $id)
     {
         $channel = $this->channel($request);
+        $locale = $this->localeFromRequest($request);
         $activity = Activity::with('type_data')->where('id', (int) $id)->first();
         if (!$activity || empty($this->service->visible([$activity], $channel))) {
             return $this->returnMsg(404, null, 'Promotion not found');
         }
 
-        return $this->returnMsg(200, $this->formatActivity($activity, $channel, true), 'success');
+        return $this->returnMsg(200, $this->formatActivity($activity, $channel, true, $locale), 'success');
     }
 
     public function popup(Request $request)
     {
         $channel = $this->channel($request);
+        $locale = $this->localeFromRequest($request);
         $popup = $this->service->popup(Activity::with('type_data')->get()->all(), $channel);
         if (!$popup) {
             return $this->returnMsg(200, null, 'success');
         }
 
-        return $this->returnMsg(200, $this->formatActivity($popup, $channel, true), 'success');
+        return $this->returnMsg(200, $this->formatActivity($popup, $channel, true, $locale), 'success');
     }
 
     public function apply(Request $request, $id)
@@ -180,7 +184,7 @@ class PromotionController extends Controller
         return $this->returnMsg(200, ['recorded' => true], 'success');
     }
 
-    protected function formatActivity(Activity $activity, $channel, $full)
+    protected function formatActivity(Activity $activity, $channel, $full, $locale = 'zh')
     {
         $banner = $channel === 'mobile'
             ? ($activity->app_img ?: $activity->banner)
@@ -195,15 +199,15 @@ class PromotionController extends Controller
         $row = [
             'id' => (int) $activity->id,
             'type' => (int) $activity->type,
-            'type_name' => $this->activityTypePublicName($activity->type_data),
-            'title' => $this->cleanText($this->displayText($activity->entitle ?? '', $activity->title ?? ''), "TH2.VIP \u{6d3b}\u{52a8}"),
+            'type_name' => $this->activityTypePublicName($activity->type_data, $locale),
+            'title' => $this->cleanText($this->localizedText($activity->title ?? '', $activity->entitle ?? '', $locale), "TH2.VIP \u{6d3b}\u{52a8}"),
             'banner' => $this->uploadUrl($banner),
             'app_img' => $this->uploadUrl($activity->app_img ?? ''),
             'popup_image' => $this->uploadUrl($popupImage),
             'app_popup_image' => $this->uploadUrl($activity->app_popup_image ?? ''),
             'detail_image' => $this->uploadUrl($detailImage),
             'app_detail_image' => $this->uploadUrl($activity->app_detail_image ?? ''),
-            'button_text' => $this->buttonText($activity),
+            'button_text' => $this->buttonText($activity, $locale),
             'can_apply' => (int) ($activity->can_apply ?? 0),
             'requires_auth' => (int) ($activity->requires_auth ?? 0),
             'action_url' => (string) ($activity->action_url ?? ''),
@@ -217,43 +221,53 @@ class PromotionController extends Controller
 
         if ($full) {
             $row['content'] = $this->cleanRichText(
-                $this->displayText($activity->encontent ?? '', $activity->content ?? ''), "<p>\u{9009}\u{62e9}\u{8981}\u{53c2}\u{52a0}\u{7684}\u{6d3b}\u{52a8}\uff0c\u{5e76}\u{6309}\u{9875}\u{9762}\u{89c4}\u{5219}\u{63d0}\u{4ea4}\u{7533}\u{8bf7}\uff0c\u{7cfb}\u{7edf}\u{4f1a}\u{4ea4}\u{7ed9}\u{5ba2}\u{670d}\u{5ba1}\u{6838}\u{3002}</p>"
+                $this->localizedText($activity->content ?? '', $activity->encontent ?? '', $locale), "<p>\u{9009}\u{62e9}\u{8981}\u{53c2}\u{52a0}\u{7684}\u{6d3b}\u{52a8}\uff0c\u{5e76}\u{6309}\u{9875}\u{9762}\u{89c4}\u{5219}\u{63d0}\u{4ea4}\u{7533}\u{8bf7}\uff0c\u{7cfb}\u{7edf}\u{4f1a}\u{4ea4}\u{7ed9}\u{5ba2}\u{670d}\u{5ba1}\u{6838}\u{3002}</p>"
             );
             $row['memo'] = $this->cleanRichText(
-                $this->displayText($activity->enmemo ?? '', $activity->memo ?? ''), "<p>\u{7533}\u{8bf7}\u{524d}\u{8bf7}\u{9605}\u{8bfb}\u{6d3b}\u{52a8}\u{89c4}\u{5219}\uff0c\u{5982}\u{6709}\u{7591}\u{95ee}\u{8bf7}\u{8054}\u{7cfb}\u{5ba2}\u{670d}\u{3002}</p>"
+                $this->localizedText($activity->memo ?? '', $activity->enmemo ?? '', $locale), "<p>\u{7533}\u{8bf7}\u{524d}\u{8bf7}\u{9605}\u{8bfb}\u{6d3b}\u{52a8}\u{89c4}\u{5219}\uff0c\u{5982}\u{6709}\u{7591}\u{95ee}\u{8bf7}\u{8054}\u{7cfb}\u{5ba2}\u{670d}\u{3002}</p>"
             );
         }
 
         return $row;
     }
 
+    protected function localizedText($default, $translated, $locale)
+    {
+        if ($locale === 'th') {
+            return $this->displayText($translated, $default);
+        }
+
+        return $this->displayText($default, $translated);
+    }
+
     protected function displayText($primary, $fallback)
     {
         $primary = trim((string) $primary);
-        if ($primary !== '') {
+        if ($primary !== '' && !$this->hasBrokenText($primary)) {
             return $primary;
         }
 
-        return trim((string) $fallback);
+        $fallback = trim((string) $fallback);
+        return $this->hasBrokenText($fallback) ? '' : $fallback;
     }
 
-    protected function activityTypePublicName($type)
+    protected function activityTypePublicName($type, $locale = 'zh')
     {
         if (!$type) {
             return "\u{6d3b}\u{52a8}";
         }
 
         return $this->cleanText(
-            $this->displayText($type->enname ?? '', $type->name ?? ''),
+            $this->localizedText($type->name ?? '', $type->enname ?? '', $locale),
             "\u{6d3b}\u{52a8}"
         );
     }
 
-    protected function buttonText(Activity $activity)
+    protected function buttonText(Activity $activity, $locale = 'zh')
     {
         if (Schema::hasColumn('activities', 'button_text')) {
-            $configured = $this->cleanText($activity->button_text ?? '', '');
-            if ($configured !== '') {
+            $configured = trim(strip_tags((string) ($activity->button_text ?? '')));
+            if ($configured !== '' && !$this->hasBrokenText($configured) && ($locale === 'th' || !$this->hasThaiText($configured))) {
                 return $configured;
             }
         }
@@ -295,7 +309,53 @@ class PromotionController extends Controller
 
     protected function hasBrokenText($value)
     {
-        return preg_match('/[\x{3400}-\x{4DBF}\x{4E00}-\x{9FFF}\x{F000}-\x{F8FF}\x{FFFD}]/u', (string) $value) === 1;
+        $text = (string) $value;
+        if ($text === '') {
+            return false;
+        }
+        if (preg_match('/[\x{F000}-\x{F8FF}\x{FFFD}]/u', $text) === 1) {
+            return true;
+        }
+
+        foreach ([
+            "\u{5599}\u{20AC}",
+            "\u{5594}\u{66D5}",
+            "\u{5594}\u{65B7}",
+            "\u{5594}\u{FF40}",
+            "\u{9435}",
+            "\u{93BA}",
+            "\u{942A}",
+            "\u{947F}\u{6EDD}",
+            "\u{95C1}\u{517C}",
+            "\u{943E}",
+            "\u{9395}",
+        ] as $token) {
+            if (strpos($text, $token) !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    protected function hasThaiText($value)
+    {
+        return preg_match('/[\x{0E00}-\x{0E7F}]/u', (string) $value) === 1;
+    }
+
+    protected function localeFromRequest(Request $request)
+    {
+        $locale = (string) (
+            $request->input('locale')
+            ?: $request->input('language')
+            ?: $request->input('lang')
+            ?: $request->header('Lang')
+            ?: $request->header('Accept-Language')
+            ?: 'zh-CN'
+        );
+        $locale = strtolower(str_replace('_', '-', trim($locale)));
+
+        return strpos($locale, 'th') === 0 ? 'th' : 'zh';
     }
 
     protected function channel(Request $request)

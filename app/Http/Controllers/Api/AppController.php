@@ -833,23 +833,24 @@ class AppController extends Controller
     public function activities(Request $request)
     {
         $Activity = [];
+        $locale = $this->promotionLocaleFromRequest($request);
         $visible = (new PromotionService())->visible(Activity::with('type_data')->get()->all(), 'mobile');
 		foreach($visible as $activity){
-            $Activity[] = $this->appPromotionPayload($activity);
+            $Activity[] = $this->appPromotionPayload($activity, $locale);
 		}
 
 		return $this->returnMsg(200,$Activity,'成功');
 	}	
 
-    private function appPromotionPayload(Activity $activity)
+    private function appPromotionPayload(Activity $activity, $locale = 'zh')
     {
         $banner = ($activity->app_img ?? '') ?: ($activity->banner ?? '');
         $detailImage = ($activity->app_detail_image ?? '') ?: ($activity->detail_image ?? '') ?: $banner;
         $popupImage = ($activity->app_popup_image ?? '') ?: ($activity->popup_image ?? '') ?: $banner;
-        $title = $this->promotionDisplayText($activity->entitle ?? '', $activity->title ?? '');
-        $content = $this->promotionDisplayText($activity->encontent ?? '', $activity->content ?? '');
-        $memo = $this->promotionDisplayText($activity->enmemo ?? '', $activity->memo ?? '');
-        $typeName = $this->activityTypePublicName($activity->type_data);
+        $title = $this->promotionDisplayText($activity->title ?? '', $activity->entitle ?? '', $locale);
+        $content = $this->promotionDisplayText($activity->content ?? '', $activity->encontent ?? '', $locale);
+        $memo = $this->promotionDisplayText($activity->memo ?? '', $activity->enmemo ?? '', $locale);
+        $typeName = $this->activityTypePublicName($activity->type_data, $locale);
 
         return [
             'id' => (int)($activity->id ?? 0),
@@ -867,7 +868,7 @@ class AppController extends Controller
             'app_popup_image' => $this->formatAppUploadUrl($activity->app_popup_image ?? ''),
             'detail_image' => $this->formatAppUploadUrl($detailImage),
             'app_detail_image' => $this->formatAppUploadUrl($activity->app_detail_image ?? ''),
-            'button_text' => $this->appPromotionButtonText($activity),
+            'button_text' => $this->appPromotionButtonText($activity, $locale),
             'can_apply' => (int)($activity->can_apply ?? 0),
             'requires_auth' => (int)($activity->requires_auth ?? 0),
             'action_url' => (string)($activity->action_url ?? ''),
@@ -895,14 +896,29 @@ class AppController extends Controller
         return $map[$type] ?? 99;
     }
 
-    private function appPromotionButtonText(Activity $activity)
+    private function appPromotionButtonText(Activity $activity, $locale = 'zh')
     {
         $configured = trim((string)($activity->button_text ?? ''));
-        if ($configured !== '') {
+        if ($configured !== '' && !$this->promotionHasBrokenText($configured) && ($locale === 'th' || !$this->promotionHasThaiText($configured))) {
             return $configured;
         }
 
         $url = trim((string)($activity->action_url ?? ''));
+        if ($locale !== 'th') {
+            if ($url !== '') {
+                if (stripos($url, 'recharge') !== false || stripos($url, 'deposit') !== false) {
+                    return '立即充值';
+                }
+                if (stripos($url, 'support') !== false || stripos($url, 'service') !== false) {
+                    return '联系客服';
+                }
+
+                return '查看详情';
+            }
+
+            return (int)($activity->can_apply ?? 0) === 1 ? '申请活动' : '查看详情';
+        }
+
         if ($url !== '') {
             if (stripos($url, 'recharge') !== false || stripos($url, 'deposit') !== false) {
                 return 'เติมเงินทันที';
@@ -917,23 +933,82 @@ class AppController extends Controller
         return (int)($activity->can_apply ?? 0) === 1 ? 'รับโปรโมชั่น' : 'ดูรายละเอียด';
     }
 
-    private function promotionDisplayText($primary, $fallback)
+    private function promotionDisplayText($primary, $fallback, $locale = 'zh')
     {
+        if ($locale === 'th') {
+            $translated = trim((string)$fallback);
+            if ($translated !== '' && !$this->promotionHasBrokenText($translated)) {
+                return $translated;
+            }
+        }
+
         $primary = trim((string)$primary);
-        if ($primary !== '') {
+        if ($primary !== '' && !$this->promotionHasBrokenText($primary)) {
             return $primary;
         }
 
-        return trim((string)$fallback);
+        $fallback = trim((string)$fallback);
+        return $this->promotionHasBrokenText($fallback) ? '' : $fallback;
     }
 
-    private function activityTypePublicName($type)
+    private function activityTypePublicName($type, $locale = 'zh')
     {
         if (!$type) {
             return '';
         }
 
-        return $this->promotionDisplayText($type->enname ?? '', $type->name ?? '');
+        return $this->promotionDisplayText($type->name ?? '', $type->enname ?? '', $locale);
+    }
+
+    private function promotionLocaleFromRequest(Request $request)
+    {
+        $locale = (string) (
+            $request->input('locale')
+            ?: $request->input('language')
+            ?: $request->input('lang')
+            ?: $request->header('Lang')
+            ?: $request->header('Accept-Language')
+            ?: 'zh-CN'
+        );
+        $locale = strtolower(str_replace('_', '-', trim($locale)));
+
+        return strpos($locale, 'th') === 0 ? 'th' : 'zh';
+    }
+
+    private function promotionHasThaiText($value)
+    {
+        return preg_match('/[\x{0E00}-\x{0E7F}]/u', (string) $value) === 1;
+    }
+
+    private function promotionHasBrokenText($value)
+    {
+        $text = (string) $value;
+        if ($text === '') {
+            return false;
+        }
+        if (preg_match('/[\x{F000}-\x{F8FF}\x{FFFD}]/u', $text) === 1) {
+            return true;
+        }
+
+        foreach ([
+            "\u{5599}\u{20AC}",
+            "\u{5594}\u{66D5}",
+            "\u{5594}\u{65B7}",
+            "\u{5594}\u{FF40}",
+            "\u{9435}",
+            "\u{93BA}",
+            "\u{942A}",
+            "\u{947F}\u{6EDD}",
+            "\u{95C1}\u{517C}",
+            "\u{943E}",
+            "\u{9395}",
+        ] as $token) {
+            if (strpos($text, $token) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function formatAppUploadUrl($path)

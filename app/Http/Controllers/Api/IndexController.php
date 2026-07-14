@@ -617,12 +617,95 @@ class IndexController extends Controller
 
     private function enabledApiCodes()
     {
-        $codes = Api::where('state', 1)->where('app_state', 1)->pluck('api_code')->toArray();
-        $data = [];
-        foreach ($codes as $code) {
-            $data[strtoupper($code)] = true;
-        }
-        return $data;
+        return $this->cachedEnabledApiCodes();
+    }
+
+    private function cachedEnabledApiCodes()
+    {
+        return Cache::remember('public_game_enabled_api_codes:v1', now()->addSeconds(60), function () {
+            $codes = Api::where('state', 1)->where('app_state', 1)->pluck('api_code')->toArray();
+            $data = [];
+            foreach ($codes as $code) {
+                $data[strtoupper($code)] = true;
+            }
+            return $data;
+        });
+    }
+
+    private function cachedPublicGameList($platform, $category, $full)
+    {
+        $platform = trim((string) $platform);
+        $category = trim((string) $category);
+        $full = (bool) $full;
+        $cacheKey = 'public_game_list:v1:' . md5($platform . '|' . $category . '|' . ($full ? '1' : '0'));
+
+        return Cache::remember($cacheKey, now()->addSeconds(60), function () use ($platform, $category, $full) {
+            $columns = $full
+                ? ['id','name','name_en','platform_name','category_id','game_code','app_state','is_hot','is_new','is_recommend','check_yes_img','check_no_img','api_logo_img','mobile_img','app_img','header_logo']
+                : ['id','name','name_en','platform_name','category_id','game_code','app_state','is_hot','is_new','is_recommend','api_logo_img','mobile_img','app_img'];
+            $list = GameList::when($platform, function ($query) use ($platform) {
+                return $query->where('platform_name', $platform);
+            })->when($category, function ($query) use ($category) {
+                return $query->where('category_id', $category);
+            })->where('is_top',1)->where('app_state',1)->where('site_state',1)
+                ->select($columns)
+                ->orderBy('order_by', 'asc')
+                ->get()
+                ->toArray();
+
+            $enabledApis = $this->cachedEnabledApiCodes();
+            $rows = [];
+            foreach ($list as $value) {
+                if (!isset($enabledApis[strtoupper($value['platform_name'])])) {
+                    continue;
+                }
+
+                $img = $value['api_logo_img'] ?: $value['mobile_img'];
+                if ($full) {
+                    $row = $value;
+                    $row['gamepic'] = $this->formatGameImage($img);
+                    $row['img'] = $this->formatGameImage($img);
+                    $row['api_code'] = $value['platform_name'];
+                    $row['platform_code'] = $value['platform_name'];
+                    $row['type_code'] = $value['category_id'];
+                    $row['game_type'] = $value['category_id'];
+                    $row['type_name'] = $this->gameCategoryLabel($value['category_id']);
+                    $row['category_name'] = $this->gameCategoryLabel($value['category_id']);
+                    $row['check_yes_img'] = $this->formatGameImage($value['check_yes_img']);
+                    $row['check_no_img'] = $this->formatGameImage($value['check_no_img']);
+                    $row['api_logo_img'] = $this->formatGameImage($value['api_logo_img']);
+                    $row['mobile_img'] = $this->formatGameImage($value['mobile_img']);
+                    $row['header_logo'] = $this->formatGameImage($value['header_logo']);
+                    $rows[] = $row;
+                    continue;
+                }
+
+                $rows[] = [
+                    'id' => $value['id'] ?? null,
+                    'gamepic' => $this->formatGameImage($img),
+                    'img' => $this->formatGameImage($img),
+                    'api_code' => $value['platform_name'],
+                    'platform_code' => $value['platform_name'],
+                    'type_code' => $value['category_id'],
+                    'type_name' => $this->gameCategoryLabel($value['category_id']),
+                    'category_name' => $this->gameCategoryLabel($value['category_id']),
+                    'catecode' => $value['platform_name'],
+                    'platform_name' => $value['platform_name'],
+                    'gamename' => $value['name'],
+                    'name' => $value['name'],
+                    'gamecode' => $value['game_code'],
+                    'game_code' => $value['game_code'],
+                    'gametype' => $value['category_id'],
+                    'category_id' => $value['category_id'],
+                    'app_state' => $value['app_state'],
+                    'is_hot' => (int)($value['is_hot'] ?? 0),
+                    'is_new' => (int)($value['is_new'] ?? 0),
+                    'is_recommend' => (int)($value['is_recommend'] ?? 0),
+                ];
+            }
+
+            return $rows;
+        });
     }
 
     public function credit(Request $request)
@@ -812,8 +895,9 @@ class IndexController extends Controller
     /**
      * 活动类型列表。
      */
-    public function activityType()
+    public function activityType(Request $request)
     {
+        $locale = $this->promotionLocaleFromRequest($request);
         $columns = $this->selectExistingColumns('activity_types', ['id', 'name', 'enname', 'icon', 'state', 'sort_order', 'created_at']);
         $query = ActivityType::select($columns ?: ['*']);
         if ($this->hasColumn('activity_types', 'state')) {
@@ -825,7 +909,7 @@ class IndexController extends Controller
         $list = $query->orderBy('id', 'asc')->get();
         foreach ($list as $item) {
             $adminName = (string) ($item->name ?? '');
-            $item->name = $this->activityTypePublicName($item);
+            $item->name = $this->activityTypePublicName($item, $locale);
             $item->admin_name = $adminName;
             $item->enname = $item->enname ?? '';
             $item->icon = isset($item->icon) ? $this->formatUploadUrl($item->icon) : '';
@@ -844,9 +928,10 @@ class IndexController extends Controller
         $this->validate($request, $rules, $this->messages);
         $type = $request->input('type', '');
         $channel = $this->promotionChannel($request);
+        $locale = $this->promotionLocaleFromRequest($request);
         $rows = [];
         foreach ($this->promotionVisibleActivities($request, $type) as $activity) {
-            $rows[] = $this->legacyPromotionPayload($activity, $channel, false);
+            $rows[] = $this->legacyPromotionPayload($activity, $channel, false, $locale);
         }
 
         $page = max(1, (int) $request->input('page', 1));
@@ -872,12 +957,13 @@ class IndexController extends Controller
         $this->validate($request, $rules, $this->messages);
         $id = $request->input('id', 0);
         $channel = $this->promotionChannel($request);
+        $locale = $this->promotionLocaleFromRequest($request);
         $activity = Activity::with('type_data')->where('id', $id)->first();
         if (!$activity || empty((new PromotionService())->visible([$activity], $channel))) {
             return $this->returnMsg(200, $this->legacyPromotionFallback($id), 'activity not found');
         }
 
-        return $this->returnMsg(200, $this->legacyPromotionPayload($activity, $channel, true));
+        return $this->returnMsg(200, $this->legacyPromotionPayload($activity, $channel, true, $locale));
     }
 
     /**
@@ -1386,47 +1472,7 @@ class IndexController extends Controller
     {
         $platform = $request->input('platform_name') ?? ($request->input('platform') ?? '');
         $category = $request->input('game_type') ?? ($request->input('category') ?? '');
-        $list = GameList::when($platform,function ($query) use ($platform){
-            return $query->where('platform_name',$platform);
-        })->when($category,function ($query) use ($category){
-            return $query->where('category_id',$category);
-        })->where('is_top',1)->where('app_state',1)->where('site_state',1)
-            ->select('id','name','name_en','platform_name','category_id','game_code','app_state','is_hot','is_new','is_recommend','api_logo_img','mobile_img','app_img')
-            ->orderBy('order_by','asc')
-            ->get()
-            ->toArray();
-
-        $enabledApis = $this->enabledApiCodes();
-        $gamelist = [];
-        foreach($list as $value){
-            if (!isset($enabledApis[strtoupper($value['platform_name'])])) {
-                continue;
-            }
-
-            $img = $value['api_logo_img'] ?: $value['mobile_img'];
-            $gamelist[] = [
-                'id' => $value['id'] ?? null,
-                'gamepic' => $this->formatGameImage($img),
-                'img' => $this->formatGameImage($img),
-                'api_code' => $value['platform_name'],
-                'platform_code' => $value['platform_name'],
-                'type_code' => $value['category_id'],
-                'type_name' => $this->gameCategoryLabel($value['category_id']),
-                'category_name' => $this->gameCategoryLabel($value['category_id']),
-                'catecode' => $value['platform_name'],
-                'platform_name' => $value['platform_name'],
-                'gamename' => $value['name'],
-                'name' => $value['name'],
-                'gamecode' => $value['game_code'],
-                'game_code' => $value['game_code'],
-                'gametype' => $value['category_id'],
-                'category_id' => $value['category_id'],
-                'app_state' => $value['app_state'],
-                'is_hot' => (int)($value['is_hot'] ?? 0),
-                'is_new' => (int)($value['is_new'] ?? 0),
-                'is_recommend' => (int)($value['is_recommend'] ?? 0),
-            ];
-        }
+        $gamelist = $this->cachedPublicGameList($platform, $category, false);
 
         return $this->returnMsg(200,$gamelist);
     }
@@ -2446,7 +2492,7 @@ class IndexController extends Controller
         return (new PromotionService())->visible($query->get()->all(), $this->promotionChannel($request));
     }
 
-    private function legacyPromotionPayload(Activity $activity, $channel, $full = false)
+    private function legacyPromotionPayload(Activity $activity, $channel, $full = false, $locale = 'zh')
     {
         $banner = $channel === 'mobile'
             ? (($activity->app_img ?? '') ?: ($activity->banner ?? ''))
@@ -2457,10 +2503,10 @@ class IndexController extends Controller
         $detailImage = $channel === 'mobile'
             ? (($activity->app_detail_image ?? '') ?: ($activity->detail_image ?? '') ?: $banner)
             : (($activity->detail_image ?? '') ?: ($activity->app_detail_image ?? '') ?: $banner);
-        $typeName = $this->activityTypePublicName($activity->type_data);
-        $title = $this->promotionDisplayText($activity->entitle ?? '', $activity->title ?? '');
-        $content = $this->promotionDisplayText($activity->encontent ?? '', $activity->content ?? '');
-        $memo = $this->promotionDisplayText($activity->enmemo ?? '', $activity->memo ?? '');
+        $typeName = $this->activityTypePublicName($activity->type_data, $locale);
+        $title = $this->promotionDisplayText($activity->title ?? '', $activity->entitle ?? '', $locale);
+        $content = $this->promotionDisplayText($activity->content ?? '', $activity->encontent ?? '', $locale);
+        $memo = $this->promotionDisplayText($activity->memo ?? '', $activity->enmemo ?? '', $locale);
 
         $row = [
             'id' => (int) ($activity->id ?? 0),
@@ -2478,7 +2524,7 @@ class IndexController extends Controller
             'app_popup_image' => $this->formatUploadUrl($activity->app_popup_image ?? ''),
             'detail_image' => $this->formatUploadUrl($detailImage),
             'app_detail_image' => $this->formatUploadUrl($activity->app_detail_image ?? ''),
-            'button_text' => $this->promotionButtonText($activity),
+            'button_text' => $this->promotionButtonText($activity, $locale),
             'can_apply' => (int) ($activity->can_apply ?? 0),
             'requires_auth' => (int) ($activity->requires_auth ?? 0),
             'action_url' => (string) ($activity->action_url ?? ''),
@@ -2544,16 +2590,31 @@ class IndexController extends Controller
             : 'desktop';
     }
 
-    private function promotionButtonText(Activity $activity)
+    private function promotionButtonText(Activity $activity, $locale = 'zh')
     {
         if ($this->hasColumn('activities', 'button_text')) {
             $configured = trim((string) ($activity->button_text ?? ''));
-            if ($configured !== '') {
+            if ($configured !== '' && !$this->promotionHasBrokenText($configured) && ($locale === 'th' || !$this->promotionHasThaiText($configured))) {
                 return $configured;
             }
         }
 
         $url = trim((string) ($activity->action_url ?? ''));
+        if ($locale !== 'th') {
+            if ($url !== '') {
+                if (stripos($url, 'recharge') !== false || stripos($url, 'deposit') !== false) {
+                    return '立即充值';
+                }
+                if (stripos($url, 'support') !== false || stripos($url, 'service') !== false) {
+                    return '联系客服';
+                }
+
+                return '查看详情';
+            }
+
+            return (int) ($activity->can_apply ?? 0) === 1 ? '申请活动' : '查看详情';
+        }
+
         if ($url !== '') {
             if (stripos($url, 'recharge') !== false || stripos($url, 'deposit') !== false) {
                 return 'เติมเงินทันที';
@@ -2568,23 +2629,82 @@ class IndexController extends Controller
         return (int) ($activity->can_apply ?? 0) === 1 ? 'รับโปรโมชั่น' : 'ดูรายละเอียด';
     }
 
-    private function promotionDisplayText($primary, $fallback)
+    private function promotionDisplayText($primary, $fallback, $locale = 'zh')
     {
+        if ($locale === 'th') {
+            $translated = trim((string) $fallback);
+            if ($translated !== '' && !$this->promotionHasBrokenText($translated)) {
+                return $translated;
+            }
+        }
+
         $primary = trim((string) $primary);
-        if ($primary !== '') {
+        if ($primary !== '' && !$this->promotionHasBrokenText($primary)) {
             return $primary;
         }
 
-        return trim((string) $fallback);
+        $fallback = trim((string) $fallback);
+        return $this->promotionHasBrokenText($fallback) ? '' : $fallback;
     }
 
-    private function activityTypePublicName($type)
+    private function activityTypePublicName($type, $locale = 'zh')
     {
         if (!$type) {
             return '';
         }
 
-        return $this->promotionDisplayText($type->enname ?? '', $type->name ?? '');
+        return $this->promotionDisplayText($type->name ?? '', $type->enname ?? '', $locale);
+    }
+
+    private function promotionLocaleFromRequest(Request $request)
+    {
+        $locale = (string) (
+            $request->input('locale')
+            ?: $request->input('language')
+            ?: $request->input('lang')
+            ?: $request->header('Lang')
+            ?: $request->header('Accept-Language')
+            ?: 'zh-CN'
+        );
+        $locale = strtolower(str_replace('_', '-', trim($locale)));
+
+        return strpos($locale, 'th') === 0 ? 'th' : 'zh';
+    }
+
+    private function promotionHasThaiText($value)
+    {
+        return preg_match('/[\x{0E00}-\x{0E7F}]/u', (string) $value) === 1;
+    }
+
+    private function promotionHasBrokenText($value)
+    {
+        $text = (string) $value;
+        if ($text === '') {
+            return false;
+        }
+        if (preg_match('/[\x{F000}-\x{F8FF}\x{FFFD}]/u', $text) === 1) {
+            return true;
+        }
+
+        foreach ([
+            "\u{5599}\u{20AC}",
+            "\u{5594}\u{66D5}",
+            "\u{5594}\u{65B7}",
+            "\u{5594}\u{FF40}",
+            "\u{9435}",
+            "\u{93BA}",
+            "\u{942A}",
+            "\u{947F}\u{6EDD}",
+            "\u{95C1}\u{517C}",
+            "\u{943E}",
+            "\u{9395}",
+        ] as $token) {
+            if (strpos($text, $token) !== false) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function formatUploadUrl($path)
@@ -2789,33 +2909,7 @@ class IndexController extends Controller
     {
         $platform = $request->input('platform_name') ?? ($request->input('platform') ?? '');
         $category = $request->input('game_type') ?? ($request->input('category') ?? '');
-        $enabledApis = $this->enabledApiCodes();
-        $list = GameList::when($platform,function ($query) use ($platform){
-            return $query->where('platform_name',$platform);
-        })->when($category,function ($query) use ($category){
-            return $query->where('category_id',$category);
-        })->where('is_top',1)->where('app_state',1)->where('site_state',1)->select('id','name','name_en','platform_name','category_id','game_code','app_state','is_hot','is_new','is_recommend','check_yes_img','check_no_img','api_logo_img','mobile_img','app_img','header_logo')->orderBy('order_by','asc')->get()->toArray();
-		foreach($list as $key => $value){
-			if(!isset($enabledApis[strtoupper($value['platform_name'])])){
-				unset($list[$key]);
-                continue;
-			}
-            $img = $value['api_logo_img'] ?: $value['mobile_img'];
-            $list[$key]['gamepic'] = $this->formatGameImage($img);
-            $list[$key]['img'] = $this->formatGameImage($img);
-            $list[$key]['api_code'] = $value['platform_name'];
-            $list[$key]['platform_code'] = $value['platform_name'];
-            $list[$key]['type_code'] = $value['category_id'];
-            $list[$key]['game_type'] = $value['category_id'];
-            $list[$key]['type_name'] = $this->gameCategoryLabel($value['category_id']);
-            $list[$key]['category_name'] = $this->gameCategoryLabel($value['category_id']);
-			$list[$key]['check_yes_img'] = $this->formatGameImage($value['check_yes_img']);
-			$list[$key]['check_no_img'] = $this->formatGameImage($value['check_no_img']);
-			$list[$key]['api_logo_img'] = $this->formatGameImage($value['api_logo_img']);
-			$list[$key]['mobile_img'] = $this->formatGameImage($value['mobile_img']);
-			$list[$key]['header_logo'] = $this->formatGameImage($value['header_logo']);
-		}
-        $list = array_merge($list);
+        $list = $this->cachedPublicGameList($platform, $category, true);
         return $this->returnMsg(200,$list);
     }
     public function gamelistBycode(Request $request)
