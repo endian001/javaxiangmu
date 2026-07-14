@@ -801,14 +801,9 @@ class AppController extends Controller
 			}
 		}
 
-		$arr['activity_id'] = $activityId;
-		$arr['user_id'] = $user->id;
-		$arr['state'] = 1;
-		$arr['created_at'] = date('Y-m-d H:i:s');
-		$arr['updated_at'] = date('Y-m-d H:i:s');
 		try {
-            $created = DB::transaction(function () use ($arr, $couponCheck, $user) {
-                $created = ActivityApply::create($arr);
+            $created = DB::transaction(function () use ($activityId, $couponCheck, $user) {
+                $created = ActivityApply::create($this->activityApplyPayload($activityId, $user, $couponCheck));
                 if (!$this->markActivityCouponUsed($couponCheck['coupon'], $user)) {
                     throw new \RuntimeException('activity coupon consume failed');
                 }
@@ -1024,11 +1019,29 @@ class AppController extends Controller
             'status' => 1,
             'vip' => 1,
             'api_token' => Str::random(60),
-            'pid' => $data['pid'] ?? 0
+            'pid' => $this->resolveInvitePid($data['pid'] ?? 0)
         ];
         $res = User::create($arr);
 		return $this->returnMsg($res ? 200 : 500,'','成功');
 	}	
+
+    private function resolveInvitePid($inviteCode): int
+    {
+        $inviteCode = trim((string) $inviteCode);
+        if ($inviteCode === '' || $inviteCode === '0') {
+            return 0;
+        }
+
+        if (ctype_digit($inviteCode)) {
+            $userId = (int) User::where('id', (int) $inviteCode)->value('id');
+            if ($userId > 0) {
+                return $userId;
+            }
+        }
+
+        return (int) User::where('username', $inviteCode)->value('id');
+    }
+
     public function islogin(Request $request)
     {
         $data = $request->all();		
@@ -1264,7 +1277,7 @@ class AppController extends Controller
     public function hall_list(Request $request)
     {
 		//游戏类型：1真人,2捕鱼,3电子,4彩票,5体育,6棋牌,7电竞		
-		$list = GameList::where('app_state',1)->select('name','platform_name as Code','category_id as GameType','game_code as GameCode','app_img')->orderBy('order_by','asc')->get()->toArray();
+		$list = GameList::where('is_top',1)->where('site_state',1)->where('app_state',1)->select('name','platform_name as Code','category_id as GameType','game_code as GameCode','app_img')->orderBy('order_by','asc')->get()->toArray();
         foreach($list as $k => $v){
 			if($v['GameType'] == 'realbet'){
 				$list[$k]['GameType'] = 1;

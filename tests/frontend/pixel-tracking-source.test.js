@@ -150,6 +150,26 @@ test('frontend member actions emit pixel lifecycle events', () => {
   assert.match(source, /trackPixelEvent\('withdraw'/);
 });
 
+test('registration binds invite codes captured from ad links', () => {
+  const frontend = read('public/assets/home-operations.js');
+  const authController = read('app/Http/Controllers/Api/AuthController.php');
+  const appController = read('app/Http/Controllers/Api/AppController.php');
+
+  assert.match(frontend, /function trackingInviteCode\(\)/);
+  assert.match(frontend, /window\.TH2WPixel\.params\(\)/);
+  assert.match(frontend, /th2w:pixel:tracking/);
+  assert.match(frontend, /affiliateCode/);
+  assert.match(frontend, /agentCode/);
+  assert.match(frontend, /invite_code/);
+  assert.match(frontend, /pid: body\.pid \|\| body\.invite_code \|\| trackingInviteCode\(\)/);
+
+  for (const controller of [authController, appController]) {
+    assert.match(controller, /private function resolveInvitePid/);
+    assert.match(controller, /User::where\('username', \$inviteCode\)/);
+    assert.match(controller, /'pid' => \$this->resolveInvitePid\(\$data\['pid'\] \?\? 0\)/);
+  }
+});
+
 test('backend records pixel events and ties recharge arrival back to user tracking data', () => {
   const apiRoutes = read('routes/api.php');
   const controller = read('app/Http/Controllers/Api/PixelController.php');

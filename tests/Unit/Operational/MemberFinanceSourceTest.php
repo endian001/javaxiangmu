@@ -71,6 +71,61 @@ class MemberFinanceSourceTest extends TestCase
         $this->assertStringContainsString('refresh success', $controller);
     }
 
+    public function test_manual_member_balance_adjustment_is_permission_guarded_and_audited()
+    {
+        $form = file_get_contents($this->root().'/app/Admin/Forms/Userbalance.php');
+
+        $this->assertStringContainsString('OperationPermission::MEMBER_BALANCE_ADJUST', $form);
+        $this->assertStringContainsString('OperationPermission::assert', $form);
+        $this->assertStringContainsString('lockForUpdate()', $form);
+        $this->assertStringContainsString('TransferLog::create', $form);
+        $this->assertStringContainsString('UserOperateLog::insertLog', $form);
+        $this->assertStringContainsString('OpsChangeAudit::writeAdminAudit', $form);
+        $this->assertStringContainsString("'member.balance.adjust'", $form);
+        $this->assertStringContainsString("'before_balance' => \$beforeBalance", $form);
+        $this->assertStringContainsString("'after_balance' => \$afterBalance", $form);
+    }
+
+    public function test_upstream_balance_recovery_writes_unified_admin_audit()
+    {
+        $action = file_get_contents($this->root().'/app/Admin/Actions/Grid/User/BackBalance.php');
+
+        $this->assertStringContainsString('OperationPermission::MEMBER_BALANCE_RECOVER', $action);
+        $this->assertStringContainsString('OperationPermission::can', $action);
+        $this->assertStringContainsString('UserOperateLog::insertLog', $action);
+        $this->assertStringContainsString('OpsChangeAudit::writeAdminAudit', $action);
+        $this->assertStringContainsString("'member.balance.recover'", $action);
+        $this->assertStringContainsString("'before_balance' => \$beforeBalance", $action);
+        $this->assertStringContainsString("'after_balance' => \$afterBalance", $action);
+        $this->assertStringContainsString("'order_no' => \$log->order_no", $action);
+    }
+
+    public function test_vip_reward_claims_use_transfer_logs_and_saveable_user_model()
+    {
+        $controller = file_get_contents($this->root().'/app/Http/Controllers/Member/MemberController.php');
+
+        $this->assertStringContainsString('TransferLog::where(\'user_id\', $user->id)', $controller);
+        $this->assertStringContainsString('TransferLog::create([', $controller);
+        $this->assertStringContainsString("Users::where('id', \$user->id)->lockForUpdate()->first()", $controller);
+        $this->assertStringNotContainsString('if (false)', $controller);
+        $this->assertStringNotContainsString('transfer_log where', $controller);
+        $this->assertStringNotContainsString('insert into transfer_logs', $controller);
+        $this->assertStringContainsString('function makeVipRewardOrderNo(', $controller);
+        $this->assertStringContainsString("'_vip_'.\$transferType", $controller);
+
+        foreach ([
+            'claimUpgradeBonus' => "where('transfer_type', 7)",
+            'claimWeeklySalary' => "where('transfer_type', 8)",
+            'claimMonthlySalary' => "where('transfer_type', 9)",
+        ] as $method => $needle) {
+            $body = $this->methodBody($controller, $method);
+            $this->assertStringContainsString('DB::transaction', $body);
+            $this->assertStringContainsString('lockForUpdate()', $body);
+            $this->assertStringContainsString('TransferLog::create([', $body);
+            $this->assertStringContainsString($needle, $body);
+        }
+    }
+
     private function methodBody($source, $method)
     {
         $needle = 'function '.$method.'(';

@@ -120,6 +120,11 @@ class IndexController extends Controller
         return view($this->path . '.member.applyagent',compact('user'));
     }
 
+    protected function visibleGameQuery()
+    {
+        return GameList::where('is_top', 1)->where('site_state', 1);
+    }
+
 
     public function applyagentdo(Request $request)
     {
@@ -152,7 +157,7 @@ class IndexController extends Controller
         }else{
             $balancelist = [];
         }
-        $list = GameList::where('category_id','sport')->where('site_state',1)->get();
+        $list = $this->visibleGameQuery()->where('category_id','sport')->get();
         return view($this->path.'.sport',compact('balancelist','lang','list'));
     }
     public function realbet()
@@ -164,7 +169,7 @@ class IndexController extends Controller
         }else{
             $balancelist = [];
         }
-        $list = GameList::where('category_id','realbet')->where('site_state',1)->orderBy('order_by','desc')->get();
+        $list = $this->visibleGameQuery()->where('category_id','realbet')->orderBy('order_by','desc')->get();
         return view($this->path.'.realbet',compact('balancelist','lang','list'));
     }
 
@@ -177,7 +182,7 @@ class IndexController extends Controller
         }else{
             $balancelist = [];
         }
-        $list = GameList::where('category_id','joker')->where('site_state',1)->orderBy('order_by','desc')->get();
+        $list = $this->visibleGameQuery()->where('category_id','joker')->orderBy('order_by','desc')->get();
         return view($this->path.'.joker',compact('balancelist','lang','list'));
     }
 
@@ -190,7 +195,7 @@ class IndexController extends Controller
         }else{
             $balancelist = [];
         }
-        $list = GameList::where('category_id','gaming')->where('site_state',1)->orderBy('order_by','desc')->get();
+        $list = $this->visibleGameQuery()->where('category_id','gaming')->orderBy('order_by','desc')->get();
         return view($this->path.'.gaming',compact('balancelist','lang','list'));
     }
 
@@ -203,7 +208,7 @@ class IndexController extends Controller
         }else{
             $balancelist = [];
         }
-        $list = GameList::where('category_id','lottery')->where('site_state',1)->orderBy('order_by','desc')->get();
+        $list = $this->visibleGameQuery()->where('category_id','lottery')->orderBy('order_by','desc')->get();
         return view($this->path.'.lottery',compact('balancelist','lang','list'));
     }
 
@@ -224,28 +229,28 @@ class IndexController extends Controller
             'wg'=>'Wg真人',
             'tm'=>'TM棋牌',
         );
-        $allgamelist = GameList::where('category_id','concise')->where('site_state',1)->where('game_code','')->orderBy('order_by','desc')->get();
+        $allgamelist = $this->visibleGameQuery()->where('category_id','concise')->where('game_code','')->orderBy('order_by','desc')->get();
         // dd($allgamelist);
         // $aegamelist = $tg->gameslist('ae');
 
         // $aegamelist = $aegamelist['data'];
-        $aegamelist = GameList::where('platform_name','ae')->where('site_state',1)->orderBy('order_by','desc')->get();
+        $aegamelist = $this->visibleGameQuery()->where('platform_name','ae')->orderBy('order_by','desc')->get();
         
         // $ppgamelist = $tg->gameslist('pp');
         // $ppgamelist = $ppgamelist['data'];
-        $ppgamelist = GameList::where('platform_name','pp')->where('site_state',1)->orderBy('order_by','desc')->get();
+        $ppgamelist = $this->visibleGameQuery()->where('platform_name','pp')->orderBy('order_by','desc')->get();
         
         // $obggamelist = $tg->gameslist('obgdy');
         // $obggamelist = $obggamelist['data'];
-        $obggamelist = GameList::where('platform_name','obgdy')->where('site_state',1)->orderBy('order_by','desc')->get();
+        $obggamelist = $this->visibleGameQuery()->where('platform_name','obgdy')->orderBy('order_by','desc')->get();
         
         // $fggamelist = $tg->gameslist('fgdz');
         // $fggamelist = $fggamelist['data'];
-        $fggamelist = GameList::where('platform_name','fgdz')->where('site_state',1)->orderBy('order_by','desc')->get();
+        $fggamelist = $this->visibleGameQuery()->where('platform_name','fgdz')->orderBy('order_by','desc')->get();
         
-        $cggamelist = GameList::where('platform_name','cg')->where('site_state',1)->orderBy('order_by','desc')->get();
+        $cggamelist = $this->visibleGameQuery()->where('platform_name','cg')->orderBy('order_by','desc')->get();
         
-        $fishgamelist = GameList::where('platform_name','fgfish')->where('site_state',1)->orderBy('order_by','desc')->get();
+        $fishgamelist = $this->visibleGameQuery()->where('platform_name','fgfish')->orderBy('order_by','desc')->get();
         
         if(Auth::user()) {
             $balancelist = Usersmoney::getUserBalance(Auth::id());

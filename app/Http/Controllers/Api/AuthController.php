@@ -56,10 +56,27 @@ class AuthController extends Controller
             'status' => 1,
             'vip' => 1,
             'api_token' => Str::random(60),
-            'pid' => $data['pid'] ?? 0
+            'pid' => $this->resolveInvitePid($data['pid'] ?? 0)
         ];
         $res = User::create($arr);
         return $this->returnMsg($res ? 200 : 500,$res ?? []);
+    }
+
+    private function resolveInvitePid($inviteCode): int
+    {
+        $inviteCode = trim((string) $inviteCode);
+        if ($inviteCode === '' || $inviteCode === '0') {
+            return 0;
+        }
+
+        if (ctype_digit($inviteCode)) {
+            $userId = (int) User::where('id', (int) $inviteCode)->value('id');
+            if ($userId > 0) {
+                return $userId;
+            }
+        }
+
+        return (int) User::where('username', $inviteCode)->value('id');
     }
 
     /**

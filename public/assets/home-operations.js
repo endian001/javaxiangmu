@@ -500,20 +500,59 @@
   function authRequestBody(mode, body) {
     var username = body.name || body.username || '';
     if (mode === 'register') {
+      var payPassword = body.paypassword || body.qukuanmima || body.qk_pwd || body.password || '258963';
       return {
         name: username,
         realname: body.realname || username,
         password: body.password || '',
         password_confirmation: body.password_confirmation || body.password || '',
-        paypassword: body.paypassword || body.qukuanmima || body.password || '258963',
-        qukuanmima: body.qukuanmima || body.paypassword || body.password || '258963',
-        pid: body.pid || body.invite_code || ''
+        paypassword: payPassword,
+        qukuanmima: payPassword,
+        qk_pwd: payPassword,
+        pid: body.pid || body.invite_code || trackingInviteCode()
       };
     }
     return {
       name: username,
       password: body.password || ''
     };
+  }
+
+  function trackingInviteCode() {
+    var params = {};
+    try {
+      if (window.TH2WPixel && typeof window.TH2WPixel.params === 'function') {
+        params = window.TH2WPixel.params() || {};
+      }
+    } catch (error) {
+      params = {};
+    }
+
+    if (!Object.keys(params).length) {
+      params = storedTrackingParams();
+    }
+
+    var keys = ['affiliateCode', 'agentCode', 'invite_code', 'pid'];
+    for (var i = 0; i < keys.length; i += 1) {
+      var value = cleanInviteCode(params[keys[i]]);
+      if (value) {
+        return value;
+      }
+    }
+
+    return '';
+  }
+
+  function storedTrackingParams() {
+    try {
+      return JSON.parse(localStorage.getItem('th2w:pixel:tracking') || localStorage.getItem('th2w_pixel_tracking') || '{}') || {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function cleanInviteCode(value) {
+    return String(value || '').trim().slice(0, 191);
   }
 
   function loginUrl() {

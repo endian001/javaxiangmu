@@ -140,13 +140,7 @@ class PromotionController extends Controller
 
         try {
             DB::transaction(function () use ($activity, $user, $couponCheck) {
-                ActivityApply::create([
-                    'activity_id' => (int) $activity->id,
-                    'user_id' => (int) $user->id,
-                    'state' => 1,
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
+                ActivityApply::create($this->activityApplyPayload((int) $activity->id, $user, $couponCheck));
 
                 if (!$this->markActivityCouponUsed($couponCheck['coupon'], $user)) {
                     throw new \RuntimeException('activity coupon consume failed');

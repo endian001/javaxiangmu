@@ -422,6 +422,49 @@ class Controller extends BaseController
         return $this->tcgBusinessOperations()->markCouponUsed($coupon->id, $user);
     }
 
+    protected function activityApplyPayload($activityId, $user, array $couponCheck)
+    {
+        $now = date('Y-m-d H:i:s');
+        $payload = [
+            'activity_id' => (int) $activityId,
+            'user_id' => (int) $this->activityApplyUserValue($user, 'id'),
+            'state' => 1,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        $coupon = $couponCheck['coupon'] ?? null;
+        if (Schema::hasColumn('activity_apply', 'coupon_code')) {
+            $payload['coupon_code'] = $coupon ? (string)($coupon->coupon_code ?? '') : null;
+        }
+        if (Schema::hasColumn('activity_apply', 'reward_amount')) {
+            $payload['reward_amount'] = $this->activityCouponAmount($coupon);
+        }
+        if (Schema::hasColumn('activity_apply', 'reward_source')) {
+            $payload['reward_source'] = $coupon ? 'coupon' : 'manual_review';
+        }
+
+        return $payload;
+    }
+
+    protected function activityCouponAmount($coupon)
+    {
+        if (!$coupon || !isset($coupon->amount)) {
+            return 0;
+        }
+
+        return max(0, (float) $coupon->amount);
+    }
+
+    private function activityApplyUserValue($user, $field)
+    {
+        if (is_array($user)) {
+            return $user[$field] ?? null;
+        }
+
+        return is_object($user) ? ($user->{$field} ?? null) : null;
+    }
+
     protected function activityCouponCode($request)
     {
         foreach (['coupon_code', 'couponCode', 'ticket_code', 'ticketCode', 'voucher_code', 'voucherCode'] as $key) {

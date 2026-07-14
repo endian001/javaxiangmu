@@ -135,13 +135,7 @@ class IndexController extends Controller
 
         try {
             $created = DB::transaction(function () use ($activityId, $userinfo, $couponCheck) {
-                $created = ActivityApply::create([
-                    'activity_id' => $activityId,
-                    'user_id' => $userinfo->id,
-                    'state' => 1,
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
+                $created = ActivityApply::create($this->activityApplyPayload($activityId, $userinfo, $couponCheck));
 
                 if (!$this->markActivityCouponUsed($couponCheck['coupon'], $userinfo)) {
                     throw new \RuntimeException('activity coupon consume failed');

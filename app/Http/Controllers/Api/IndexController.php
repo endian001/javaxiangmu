@@ -633,9 +633,7 @@ class IndexController extends Controller
         return $data;
     }
     /**
-     * 閸忣剙鎲￠崚妤勩€?
-     *
-     * @return void
+     * 首页轮播图列表。
      */
     public function bannerList(Request $request)
     {
@@ -674,9 +672,7 @@ class IndexController extends Controller
     }
 
     /**
-     * 閸忣剙鎲￠崚妤勩€?
-     *
-     * @return void
+     * 平台开关状态。
      */
     public function Systemstatus()
     {
@@ -750,9 +746,7 @@ class IndexController extends Controller
         return $this->returnMsg(200, $notice);
     }
     /**
-     * 閸忣剙鎲￠崚妤勩€?
-     *
-     * @return void
+     * 游戏分类列表。
      */
     public function cateList(Request $request)
     {
@@ -782,41 +776,41 @@ class IndexController extends Controller
         $limit = $data['limit'] ?? 10;
         $page = $data['page'] ?? 1;
 
-        // 濞ｈ濮炲☉鍫熶紖鏉╁洦鎶ら柅鏄忕帆閿涘奔绗宮essagecenter娣囨繃瀵旀稉鈧懛?        $token = $request->header('authorization');
+        // 获取登录用户，用于筛选可见消息。
+        $token = $request->header('authorization');
         $token = str_replace('Bearer ','',$token) ;
         $user = User::where('api_token',$token)->first();
 
-        // 閺嬪嫬缂撻弻銉嚄閺夆€叉
+        // 初始化消息查询。
         $query = Message::query();
 
-        // 閸╄櫣顢呴弶鈥叉閿涙岸娼伴崥鎴炲閺堝鏁ら幋椋庢畱濞戝牊浼?
+        // 公共消息。
         $query->where(function($q) {
             $q->where('user_id', 0)
               ->where('vip_id', 0)
               ->where('isagent', 0);
         });
 
-        // 婵″倹鐏夐弰顖欏敩閻炲棛鏁ら幋鍑ょ礉閸欘垯浜掗惇瀣煂娴狅絿鎮婂☉鍫熶紖
+        // 代理可见消息。
         if ($user->isagent == 1) {
             $query->orWhere('isagent', 1);
         }
 
-        // 閸欘垯浜掗惇瀣煂鐎电懓绨睼IP缁涘楠囬惃鍕Х閹垽绱欓幒鎺楁珟VIP姒涙垵鎮曢崡鏇熺Х閹垽绱?
+        // 按 VIP 等级可见的消息。
         $query->orWhere(function($q) use ($user) {
             $q->where('vip_id', $user->vip)
               ->where('isagent', '!=', 2);
         });
 
-        // 閸欘垯浜掗惇瀣煂娑撴捇妫崣鎴犵舶閼奉亜绻侀惃鍕Х閹?        $query->orWhere('user_id', $user->id);
+        // 指定给当前用户的消息。
+        $query->orWhere('user_id', $user->id);
 
         $list = $query->orderBy('id', 'desc')->paginate($limit, ['*'], 'page', $page);
 
         return $this->returnMsg(200, $list);
     }
     /**
-     * 濞茶濮╃猾璇茬€?
-     *
-     * @return void
+     * 活动类型列表。
      */
     public function activityType()
     {
@@ -840,10 +834,7 @@ class IndexController extends Controller
     }
 
     /**
-     * 濞茶濮╅崚妤勩€?
-     *
-     * @param Request $request
-     * @return void
+     * 活动列表。
      */
     public function activityList(Request $request)
     {
@@ -871,10 +862,7 @@ class IndexController extends Controller
         return $this->returnMsg(200, $list);
     }
     /**
-     * 濞茶濮╃拠锔藉剰
-     *
-     * @param Request $request
-     * @return void
+     * 活动详情。
      */
     public function activitydeatil(Request $request)
     {
@@ -1392,10 +1380,7 @@ class IndexController extends Controller
 
 
     /**
-     * 閼惧嘲褰囧〒鍛婂灆閸掑棛琚?
-     *
-     * @param Request $request
-     * @return void
+     * 游戏列表。
      */
     public function getGameList(Request $request)
     {
@@ -1447,10 +1432,7 @@ class IndexController extends Controller
     }
 
     /**
-     * 閼惧嘲褰囧〒鍛婂灆閸︽澘娼?
-     *
-     * @param Request $request
-     * @return void
+     * 游戏启动地址。
      */
     public function getGameUrl(Request $request)
     {
@@ -1758,8 +1740,7 @@ class IndexController extends Controller
 	}
 
     /**
-     * 鏉╂稑鍙嗗〒鍛婂灆閸氬氦鍤滈崝銊ㄦ祮鐠愶箑鍩屽〒鍛婂灆鐠愶附鍩?
-     * @return void
+     * 转入三方游戏账户。
      */
     public function transToTgAccount($user,$plat_name, $game_type)
     {
@@ -2208,14 +2189,9 @@ class IndexController extends Controller
                 }
             }
 
-            $arr['activity_id'] = $activityId;
-            $arr['user_id'] = $user->id;
-            $arr['state'] = 1;
-            $arr['created_at'] = date('Y-m-d H:i:s');
-            $arr['updated_at'] = date('Y-m-d H:i:s');
             try {
-                $created = DB::transaction(function () use ($arr, $couponCheck, $user) {
-                    $created = ActivityApply::create($arr);
+                $created = DB::transaction(function () use ($activityId, $couponCheck, $user) {
+                    $created = ActivityApply::create($this->activityApplyPayload($activityId, $user, $couponCheck));
                     if (!$this->markActivityCouponUsed($couponCheck['coupon'], $user)) {
                         throw new \RuntimeException('activity coupon consume failed');
                     }
@@ -2278,7 +2254,8 @@ class IndexController extends Controller
     }
 
     /**
-     * 缁崵绮洪柧鎯邦攽閸椻€蹭繆閹?     */
+     * 获取系统银行卡信息。
+     */
     public function systemBankCardInfo(Request $request)
     {
         $data = $request->all();
@@ -2308,28 +2285,29 @@ class IndexController extends Controller
 
         $data = $request->all();
 
-        // 閺嬪嫬缂撻弻銉嚄閺夆€叉
+        // 初始化消息查询。
         $query = Message::where('type', $data['type']);
 
-        // 閸╄櫣顢呴弶鈥叉閿涙岸娼伴崥鎴炲閺堝鏁ら幋椋庢畱濞戝牊浼?
+        // 公共消息。
         $query->where(function($q) {
             $q->where('user_id', 0)
               ->where('vip_id', 0)
               ->where('isagent', 0);
         });
 
-        // 婵″倹鐏夐弰顖欏敩閻炲棛鏁ら幋鍑ょ礉閸欘垯浜掗惇瀣煂娴狅絿鎮婂☉鍫熶紖
+        // 代理可见消息。
         if ($user->isagent == 1) {
             $query->orWhere('isagent', 1);
         }
 
-        // 閸欘垯浜掗惇瀣煂鐎电懓绨睼IP缁涘楠囬惃鍕Х閹垽绱欓幒鎺楁珟VIP姒涙垵鎮曢崡鏇熺Х閹垽绱?
+        // 按 VIP 等级可见的消息。
         $query->orWhere(function($q) use ($user) {
             $q->where('vip_id', $user->vip)
               ->where('isagent', '!=', 2);
         });
 
-        // 閸欘垯浜掗惇瀣煂娑撴捇妫崣鎴犵舶閼奉亜绻侀惃鍕Х閹?        $query->orWhere('user_id', $user->id);
+        // 指定给当前用户的消息。
+        $query->orWhere('user_id', $user->id);
 
         $list = $query->paginate(10);
         foreach ($list as $k => &$v) {
@@ -2348,28 +2326,29 @@ class IndexController extends Controller
 
         $data = $request->all();
 
-        // 閺嬪嫬缂撻弻銉嚄閺夆€叉
+        // 初始化消息查询。
         $query = Message::where('id', $data['id']);
 
-        // 閸╄櫣顢呴弶鈥叉閿涙岸娼伴崥鎴炲閺堝鏁ら幋椋庢畱濞戝牊浼?
+        // 公共消息。
         $query->where(function($q) {
             $q->where('user_id', 0)
               ->where('vip_id', 0)
               ->where('isagent', 0);
         });
 
-        // 婵″倹鐏夐弰顖欏敩閻炲棛鏁ら幋鍑ょ礉閸欘垯浜掗惇瀣煂娴狅絿鎮婂☉鍫熶紖
+        // 代理可见消息。
         if ($user->isagent == 1) {
             $query->orWhere('isagent', 1);
         }
 
-        // 閸欘垯浜掗惇瀣煂鐎电懓绨睼IP缁涘楠囬惃鍕Х閹垽绱欓幒鎺楁珟VIP姒涙垵鎮曢崡鏇熺Х閹垽绱?
+        // 按 VIP 等级可见的消息。
         $query->orWhere(function($q) use ($user) {
             $q->where('vip_id', $user->vip)
               ->where('isagent', '!=', 2);
         });
 
-        // 閸欘垯浜掗惇瀣煂娑撴捇妫崣鎴犵舶閼奉亜绻侀惃鍕Х閹?        $query->orWhere('user_id', $user->id);
+        // 指定给当前用户的消息。
+        $query->orWhere('user_id', $user->id);
 
         $list = $query->first();
 
@@ -2801,7 +2780,7 @@ class IndexController extends Controller
 
     public function getAllPlat()
     {
-        $vaild_plat = GameList::where('app_state',1)->where('is_top',1)->select('platform_name')->distinct()->pluck('platform_name')->toArray();
+        $vaild_plat = GameList::where('is_top',1)->where('site_state',1)->where('app_state',1)->select('platform_name')->distinct()->pluck('platform_name')->toArray();
         $res = array_unique($vaild_plat);
         return $this->returnMsg(200,$res);
     }
@@ -2841,7 +2820,7 @@ class IndexController extends Controller
     }
     public function gamelistBycode(Request $request)
     {
-        $list = GameList::where('site_state',1)->where('category_id','fishing')->orderBy('order_by','asc')->get()->toArray();
+        $list = GameList::where('is_top',1)->where('site_state',1)->where('app_state',1)->where('category_id','fishing')->orderBy('order_by','asc')->get()->toArray();
         $enabledApis = $this->enabledApiCodes();
 		$listarray = array();
 		foreach($list as $key => $value){

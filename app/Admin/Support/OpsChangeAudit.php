@@ -4,6 +4,8 @@ namespace App\Admin\Support;
 
 use App\Models\UserOperateLog;
 use Dcat\Admin\Admin;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class OpsChangeAudit
 {
@@ -118,6 +120,7 @@ class OpsChangeAudit
         $request = request();
         $admin = Admin::user();
         $adminName = $admin ? ((string)($admin->username ?? $admin->name ?? $admin->getKey())) : 'unknown';
+        $adminId = $admin && method_exists($admin, 'getKey') ? $admin->getKey() : null;
 
         $info = [
             'action' => $action,
@@ -126,6 +129,16 @@ class OpsChangeAudit
             'target_name' => $targetName,
             'changes' => $changes,
         ];
+
+        static::writeAdminAudit(
+            $action,
+            static::moduleFromAction($action),
+            $action.' #'.$targetId.' '.$targetName,
+            $info,
+            $request,
+            $adminId,
+            $adminName
+        );
 
         UserOperateLog::insertLog(
             0,
@@ -136,6 +149,46 @@ class OpsChangeAudit
             static::shortValue('admin '.$adminName.' '.$action.' #'.$targetId.' '.$targetName),
             static::shortValue(json_encode($info, JSON_UNESCAPED_UNICODE))
         );
+    }
+
+    public static function writeAdminAudit($action, $module, $content, array $context = [], $request = null, $adminId = null, $adminName = null)
+    {
+        if (! Schema::hasTable('admin_audit_logs')) {
+            return;
+        }
+
+        $request = $request ?: request();
+        $admin = Admin::user();
+        if ($adminId === null && $admin && method_exists($admin, 'getKey')) {
+            $adminId = $admin->getKey();
+        }
+        if ($adminName === null) {
+            $adminName = $admin ? ((string)($admin->username ?? $admin->name ?? $admin->getKey())) : 'unknown';
+        }
+
+        DB::table('admin_audit_logs')->insert([
+            'admin_user_id' => $adminId,
+            'admin_name' => $adminName,
+            'action' => static::shortValue($action),
+            'module' => static::shortValue($module ?: static::moduleFromAction($action)),
+            'content' => static::shortValue($content),
+            'ip_address' => $request ? $request->ip() : '',
+            'user_agent' => $request ? ($request->userAgent() ?: '') : '',
+            'context' => json_encode($context, JSON_UNESCAPED_UNICODE),
+            'created_at' => now(),
+        ]);
+    }
+
+    protected static function moduleFromAction($action)
+    {
+        $action = trim((string) $action);
+        if ($action === '') {
+            return 'admin';
+        }
+
+        $parts = explode('.', $action);
+
+        return static::shortValue($parts[0] ?: 'admin');
     }
 
     protected static function formValue($form, $field)
