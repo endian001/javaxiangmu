@@ -4,6 +4,167 @@
     $postbackLogs = $postbackLogs ?? null;
     $settings = $settings ?? [];
     $itemRows = $items ? $items->getCollection() : collect();
+    $operatorStats = array_merge([
+        'page_views_today' => 0,
+        'registers_today' => 0,
+        'first_deposits_today' => 0,
+        'postback_sent_today' => 0,
+        'postback_failed_today' => 0,
+        'postback_skipped_today' => 0,
+        'postback_pending_today' => 0,
+    ], $operatorStats ?? []);
+    $eventLabels = [
+        'firstOpen' => '首次打开',
+        'registerSubmit' => '提交注册',
+        'register' => '注册成功',
+        'depositSubmit' => '发起充值',
+        'firstDeposit' => '首存申请',
+        'firstDepositArrival' => '首存到账',
+        'startTrial' => '首存到账',
+        'deposit' => '充值到账',
+        'redeposit' => '复充到账',
+        'withdraw' => '提现到账',
+        'login' => '登录成功',
+        'gameLaunch' => '进入游戏',
+        'downloadApp' => '下载 APP',
+    ];
+    $platformLabels = [
+        'facebook' => 'Facebook / Meta',
+        'tiktok' => 'TikTok',
+        'google' => 'Google',
+        'gtm' => 'Google Tag Manager',
+        'kwai' => 'Kwai',
+        'bigo' => 'Bigo',
+        'okspin' => 'OKSpin',
+        'voluum' => 'Voluum',
+        'traffic_factory' => 'Traffic Factory',
+        'propellerads' => 'PropellerAds',
+        'red_track' => 'Red Track',
+        'outbrain' => 'Outbrain',
+        'kadam' => 'Kadam',
+        'phoenix_ads' => 'Phoenix Ads',
+        'mgskyads' => 'MgSkyAds',
+        'devils_tracker' => 'Devils tracker',
+        'macan_studio' => 'Macan Studio',
+        'routerhub' => 'RouterHub',
+        'egw' => 'EGW / 传音',
+        'fortune' => 'Fortune',
+        'keitaro' => 'Keitaro',
+        'revosurge' => 'Revosurge',
+        'resiliencemedia' => 'Resiliencemedia',
+        'snapchat' => 'Snapchat',
+    ];
+    $statusLabels = [
+        'sent' => ['label' => '已回传成功', 'class' => 'pc-badge-ok'],
+        'failed' => ['label' => '回传失败', 'class' => 'pc-badge-danger'],
+        'skipped' => ['label' => '未发送', 'class' => 'pc-badge-off'],
+        'pending' => ['label' => '待发送', 'class' => 'pc-badge-warn'],
+    ];
+    $skipReasonLabels = [
+        'missing_credentials' => '缺少平台 ID 或 Token',
+        'event_not_supported' => '平台暂不支持该事件',
+        'missing_click_id' => '缺少广告点击ID',
+        'missing_postback_url' => '缺少回传地址',
+        'browser_only' => '该平台只做浏览器埋点',
+        'not_matched' => '当前用户没有匹配到该平台参数',
+        'disabled' => '平台配置已停用',
+        'invalid_payload' => '回传参数不完整',
+    ];
+    $clickKeys = [
+        'fbclid',
+        'ttclid',
+        'gclid',
+        'cid',
+        'tfTracker',
+        'visitor_id',
+        'rtCid',
+        'obclid',
+        'kadam_id',
+        'pixel_click_id',
+        'phxCid',
+        'mgsClickId',
+        'devilsClickId',
+        'macanClickId',
+        'rbclickid',
+        'clickId',
+        'keitaroClickId',
+        'clickid',
+        'rmClickId',
+    ];
+    $labelEvent = function ($event) use ($eventLabels) {
+        $event = (string) $event;
+        return $eventLabels[$event] ?? $event;
+    };
+    $labelPlatform = function ($platform) use ($platformLabels) {
+        $platform = (string) $platform;
+        return $platformLabels[$platform] ?? $platform;
+    };
+    $postbackStatus = function ($status) use ($statusLabels) {
+        $status = (string) $status;
+        return $statusLabels[$status] ?? ['label' => $status ?: '未知', 'class' => 'pc-badge-warn'];
+    };
+    $labelSkipReason = function ($reason) use ($skipReasonLabels) {
+        $reason = trim((string) $reason);
+        if ($reason === '') {
+            return '-';
+        }
+        return $skipReasonLabels[$reason] ?? $reason;
+    };
+    $decodeJson = function ($value) {
+        $decoded = json_decode((string) $value, true);
+        return is_array($decoded) ? $decoded : [];
+    };
+    $prettyJson = function ($value) {
+        $decoded = json_decode((string) $value, true);
+        if (is_array($decoded)) {
+            return json_encode($decoded, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+        }
+        return (string) $value;
+    };
+    $eventTracking = function ($event) use ($decodeJson) {
+        $raw = $decodeJson($event->raw_record ?? '');
+        return is_array($raw['tracking'] ?? null) ? $raw['tracking'] : [];
+    };
+    $clickIdFromArray = function (array $values) use ($clickKeys) {
+        foreach ($clickKeys as $key) {
+            if (isset($values[$key]) && trim((string) $values[$key]) !== '') {
+                return $key.': '.$values[$key];
+            }
+        }
+        return '-';
+    };
+    $eventClickId = function ($event) use ($eventTracking, $clickIdFromArray) {
+        return $clickIdFromArray($eventTracking($event));
+    };
+    $postbackClickId = function ($log) use ($decodeJson, $clickIdFromArray) {
+        $clickIds = $decodeJson($log->attribution_click_ids_json ?? '');
+        if ($clickIds) {
+            return $clickIdFromArray($clickIds);
+        }
+        $params = $decodeJson($log->attribution_params_json ?? '');
+        return $clickIdFromArray($params);
+    };
+    $postbackUser = function ($log) {
+        if (!empty($log->conversion_username)) {
+            return $log->conversion_username;
+        }
+        if (!empty($log->attribution_username)) {
+            return $log->attribution_username;
+        }
+        if (!empty($log->conversion_user_id)) {
+            return 'ID '.$log->conversion_user_id;
+        }
+        if (!empty($log->attribution_agent_account)) {
+            return '代理 '.$log->attribution_agent_account;
+        }
+        return '-';
+    };
+    $postbackAmount = function ($log) {
+        if ($log->conversion_amount === null || $log->conversion_amount === '') {
+            return '-';
+        }
+        return rtrim(rtrim(number_format((float) $log->conversion_amount, 4, '.', ''), '0'), '.').' '.($log->conversion_currency ?: '');
+    };
 @endphp
 <div
     class="promotion-channel-page"
@@ -41,6 +202,15 @@
         .pc-form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
         .pc-form-grid .full { grid-column:1 / -1; }
         .pc-required { color:#c00000; }
+        .pc-operator-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; }
+        .pc-operator-card { border:1px solid #e7ebf0; background:#fafbfc; padding:12px; }
+        .pc-operator-card strong { display:block; font-size:22px; line-height:1.2; color:#1f2937; }
+        .pc-operator-card span { display:block; margin-top:6px; color:#667085; }
+        .pc-operator-guide { margin:12px 0 0; padding-left:18px; color:#4b5563; line-height:1.8; }
+        .pc-detail { min-width:220px; }
+        .pc-detail summary { cursor:pointer; color:#1769aa; }
+        .pc-detail pre { max-width:620px; max-height:220px; overflow:auto; margin:8px 0 0; padding:8px; background:#f7f9fc; border:1px solid #e7ebf0; color:#344054; white-space:pre-wrap; word-break:break-all; }
+        .pc-main-url { max-width:260px; word-break:break-all; }
         @media (max-width: 900px) {
             .pc-form-grid { grid-template-columns:1fr; }
             .pc-panel-head { align-items:flex-start; flex-direction:column; }
@@ -104,6 +274,34 @@
         @endif
     </div>
 
+    @if($module === 'events')
+        <div class="pc-panel">
+            <div class="pc-panel-head">
+                <div>
+                    <h4>运营总览</h4>
+                    <p>这里看今天广告链路是否通：前台记录到事件后，回传日志应出现注册成功和首存到账。</p>
+                </div>
+            </div>
+            <div class="pc-panel-body">
+                <div class="pc-operator-grid">
+                    <div class="pc-operator-card"><strong>{{ $operatorStats['page_views_today'] }}</strong><span>今日打开页面</span></div>
+                    <div class="pc-operator-card"><strong>{{ $operatorStats['registers_today'] }}</strong><span>今日注册成功</span></div>
+                    <div class="pc-operator-card"><strong>{{ $operatorStats['first_deposits_today'] }}</strong><span>今日首存到账</span></div>
+                    <div class="pc-operator-card"><strong>{{ $operatorStats['postback_sent_today'] }}</strong><span>已回传成功</span></div>
+                    <div class="pc-operator-card"><strong>{{ $operatorStats['postback_failed_today'] }}</strong><span>回传失败</span></div>
+                    <div class="pc-operator-card"><strong>{{ $operatorStats['postback_skipped_today'] }}</strong><span>未发送</span></div>
+                    <div class="pc-operator-card"><strong>{{ $operatorStats['postback_pending_today'] }}</strong><span>待发送</span></div>
+                </div>
+                <ol class="pc-operator-guide">
+                    <li>生成投放链接，把广告平台的 Pixel ID、点击ID 宏和代理推荐码放进链接。</li>
+                    <li>用链接打开前台，完成注册成功和首存到账。</li>
+                    <li>本页先看“像素事件”，再看“回传日志”；状态为“已回传成功”时，广告平台也应收到对应事件。</li>
+                    <li>如果显示“缺少平台 ID 或 Token”，先回到像素埋点设置补齐平台配置。</li>
+                </ol>
+            </div>
+        </div>
+    @endif
+
     @if($module === 'push')
         <div class="alert alert-warning">
             <strong>需要 Firebase 权限。</strong>
@@ -127,7 +325,13 @@
                 <form method="get" class="pc-toolbar">
                     <input type="hidden" name="tab" value="postback-logs">
                     <div class="pc-field"><label>平台</label><input name="platform" class="form-control" value="{{ request('platform') }}"></div>
-                    <div class="pc-field"><label>状态</label><input name="status" class="form-control" value="{{ request('status') }}" placeholder="pending / sent / failed / skipped"></div>
+                    <div class="pc-field"><label>状态</label><select name="status" class="form-control">
+                        <option value="">全部</option>
+                        <option value="sent" {{ request('status') === 'sent' ? 'selected' : '' }}>已回传成功</option>
+                        <option value="failed" {{ request('status') === 'failed' ? 'selected' : '' }}>回传失败</option>
+                        <option value="skipped" {{ request('status') === 'skipped' ? 'selected' : '' }}>未发送</option>
+                        <option value="pending" {{ request('status') === 'pending' ? 'selected' : '' }}>待发送</option>
+                    </select></div>
                     <div class="pc-field"><label>事件</label><input name="event" class="form-control" value="{{ request('event') }}"></div>
                     <div class="pc-field"><label>事件ID</label><input name="event_id" class="form-control" value="{{ request('event_id') }}"></div>
                     <div class="pc-field"><label>跳过原因</label><input name="skip_reason" class="form-control" value="{{ request('skip_reason') }}"></div>
@@ -138,27 +342,49 @@
                 </form>
             </div>
             <div class="table-responsive"><table class="table table-hover pc-table">
-                <thead><tr><th>时间</th><th>平台</th><th>状态</th><th>跳过原因</th><th>事件</th><th>平台事件</th><th>事件ID</th><th>请求地址</th><th>响应</th><th>重试</th></tr></thead>
+                <thead><tr><th>时间</th><th>平台</th><th>事件</th><th>用户</th><th>金额</th><th>点击ID</th><th>回传状态</th><th>错误原因 / 处理建议</th><th>平台响应</th><th>重试</th><th>详情</th></tr></thead>
                 <tbody>
                 @if($postbackLogs)
                     @forelse($postbackLogs as $log)
+                        @php
+                            $statusMeta = $postbackStatus($log->status);
+                            $reasonLabel = $labelSkipReason($log->skip_reason);
+                        @endphp
                         <tr>
                             <td>{{ $log->created_at }}</td>
-                            <td>{{ $log->platform }}</td>
-                            <td><span class="pc-badge {{ $log->status === 'sent' ? 'pc-badge-ok' : ($log->status === 'failed' ? 'pc-badge-danger' : ($log->status === 'skipped' ? 'pc-badge-off' : 'pc-badge-warn')) }}">{{ $log->status }}</span></td>
-                            <td>{{ $log->skip_reason ?: '-' }}</td>
-                            <td>{{ $log->event_name }}</td>
-                            <td>{{ $log->platform_event_name ?: '-' }}</td>
-                            <td>{{ $log->event_id ?: '-' }}</td>
-                            <td style="max-width:360px;word-break:break-all;">{{ $log->request_url ?: '-' }}</td>
+                            <td>{{ $labelPlatform($log->platform) }}</td>
+                            <td>
+                                <strong>{{ $labelEvent($log->event_name) }}</strong>
+                                @if($log->platform_event_name)
+                                    <div class="pc-muted">平台事件：{{ $log->platform_event_name }}</div>
+                                @endif
+                            </td>
+                            <td>{{ $postbackUser($log) }}</td>
+                            <td>{{ $postbackAmount($log) }}</td>
+                            <td>{{ $postbackClickId($log) }}</td>
+                            <td><span class="pc-badge {{ $statusMeta['class'] }}">{{ $statusMeta['label'] }}</span></td>
+                            <td>{{ $reasonLabel }}</td>
                             <td>{{ $log->response_status ?: '-' }}</td>
                             <td>{{ $log->attempts }}{{ $log->next_retry_at ? ' / '.$log->next_retry_at : '' }}</td>
+                            <td class="pc-detail">
+                                <details>
+                                    <summary>查看详情</summary>
+                                    <div class="pc-muted">事件ID：{{ $log->event_id ?: '-' }}</div>
+                                    <div class="pc-muted">请求地址：{{ $log->request_url ?: '-' }}</div>
+                                    @if($log->request_payload)
+                                        <pre>{{ $prettyJson($log->request_payload) }}</pre>
+                                    @endif
+                                    @if($log->response_body)
+                                        <pre>{{ $prettyJson($log->response_body) }}</pre>
+                                    @endif
+                                </details>
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="10" class="pc-empty">暂无回传日志</td></tr>
+                        <tr><td colspan="11" class="pc-empty">暂无回传日志</td></tr>
                     @endforelse
                 @else
-                    <tr><td colspan="10" class="pc-empty">回传日志表尚未迁移</td></tr>
+                    <tr><td colspan="11" class="pc-empty">回传日志表尚未迁移</td></tr>
                 @endif
                 </tbody>
             </table></div>
@@ -185,27 +411,43 @@
                 </form>
             </div>
             <div class="table-responsive"><table class="table table-hover pc-table">
-                <thead><tr><th>脸书像素ID</th><th>抖音像素ID</th><th>来自FB广告</th><th>注册时间</th><th>注册网址</th><th>代理账号</th><th>用户ID</th><th>用户名</th><th>事件</th><th>活动时间</th><th>钱</th><th>网址</th><th>用户代理</th><th>原始记录</th></tr></thead>
+                <thead><tr><th>活动时间</th><th>事件</th><th>用户</th><th>代理账号</th><th>金额</th><th>渠道像素</th><th>点击ID</th><th>打开页面</th><th>详情</th></tr></thead>
                 <tbody>
                 @forelse($events as $event)
                     <tr>
-                        <td>{{ $event->facebook_pixel_id ?: '-' }}</td>
-                        <td>{{ $event->tiktok_pixel_id ?: '-' }}</td>
-                        <td>{{ $event->from_facebook ? '是' : '否' }}</td>
-                        <td>{{ $event->registered_at ?: '-' }}</td>
-                        <td>{{ $event->registration_url ?: '-' }}</td>
-                        <td>{{ $event->agent_account ?: '-' }}</td>
-                        <td>{{ $event->user_id ?: '-' }}</td>
-                        <td>{{ $event->username ?: '-' }}</td>
-                        <td>{{ $event->event }}</td>
                         <td>{{ $event->event_at ?: '-' }}</td>
-                        <td>{{ $event->amount }}</td>
-                        <td>{{ $event->url ?: '-' }}</td>
-                        <td>{{ $event->user_agent ?: '-' }}</td>
-                        <td>{{ $event->raw_record ?: '-' }}</td>
+                        <td><strong>{{ $labelEvent($event->event) }}</strong></td>
+                        <td>{{ $event->username ?: ($event->user_id ? 'ID '.$event->user_id : '-') }}</td>
+                        <td>{{ $event->agent_account ?: '-' }}</td>
+                        <td>{{ rtrim(rtrim(number_format((float) $event->amount, 4, '.', ''), '0'), '.') }}</td>
+                        <td>
+                            @if($event->facebook_pixel_id)
+                                <div>Facebook：{{ $event->facebook_pixel_id }}</div>
+                            @endif
+                            @if($event->tiktok_pixel_id)
+                                <div>TikTok：{{ $event->tiktok_pixel_id }}</div>
+                            @endif
+                            @if(!$event->facebook_pixel_id && !$event->tiktok_pixel_id)
+                                -
+                            @endif
+                        </td>
+                        <td>{{ $eventClickId($event) }}</td>
+                        <td class="pc-main-url">{{ $event->url ?: '-' }}</td>
+                        <td class="pc-detail">
+                            <details>
+                                <summary>查看详情</summary>
+                                <div class="pc-muted">注册时间：{{ $event->registered_at ?: '-' }}</div>
+                                <div class="pc-muted">注册网址：{{ $event->registration_url ?: '-' }}</div>
+                                <div class="pc-muted">来自FB广告：{{ $event->from_facebook ? '是' : '否' }}</div>
+                                <div class="pc-muted">用户代理：{{ $event->user_agent ?: '-' }}</div>
+                                @if($event->raw_record)
+                                    <pre>{{ $prettyJson($event->raw_record) }}</pre>
+                                @endif
+                            </details>
+                        </td>
                     </tr>
                 @empty
-                    <tr><td colspan="14" class="pc-empty">暂无事件记录</td></tr>
+                    <tr><td colspan="9" class="pc-empty">暂无事件记录</td></tr>
                 @endforelse
                 </tbody>
             </table></div>

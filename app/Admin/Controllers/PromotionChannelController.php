@@ -57,15 +57,17 @@ class PromotionChannelController extends Controller
         $pushJobs = collect();
         $events = null;
         $postbackLogs = null;
+        $operatorStats = [];
 
         if ($module === 'events') {
+            $operatorStats = $this->eventOperatorStats();
             $events = $this->eventQuery($request)
                 ->orderByDesc('id')
                 ->paginate(30)
                 ->appends($request->query());
             if (Schema::hasTable('promotion_tracking_postback_logs')) {
                 $postbackLogs = $this->postbackLogQuery($request)
-                    ->orderByDesc('id')
+                    ->orderByDesc('logs.id')
                     ->paginate(30)
                     ->appends($request->query());
             }
@@ -118,6 +120,7 @@ class PromotionChannelController extends Controller
                 'pushJobs',
                 'events',
                 'postbackLogs',
+                'operatorStats',
                 'tab'
             ))->render());
     }
@@ -486,13 +489,36 @@ class PromotionChannelController extends Controller
 
     private function postbackLogQuery(Request $request)
     {
-        $query = DB::table('promotion_tracking_postback_logs');
+        $query = DB::table('promotion_tracking_postback_logs as logs')
+            ->leftJoin(
+                'promotion_tracking_conversions as conversions',
+                'conversions.id',
+                '=',
+                'logs.conversion_event_id'
+            )
+            ->leftJoin(
+                'promotion_tracking_attributions as attributions',
+                'attributions.id',
+                '=',
+                'logs.attribution_id'
+            )
+            ->select([
+                'logs.*',
+                'conversions.username as conversion_username',
+                'conversions.user_id as conversion_user_id',
+                'conversions.amount as conversion_amount',
+                'conversions.currency as conversion_currency',
+                'attributions.username as attribution_username',
+                'attributions.agent_account as attribution_agent_account',
+                'attributions.click_ids_json as attribution_click_ids_json',
+                'attributions.params_json as attribution_params_json',
+            ]);
         foreach ([
-            'platform' => 'platform',
-            'status' => 'status',
-            'event' => 'event_name',
-            'event_id' => 'event_id',
-            'skip_reason' => 'skip_reason',
+            'platform' => 'logs.platform',
+            'status' => 'logs.status',
+            'event' => 'logs.event_name',
+            'event_id' => 'logs.event_id',
+            'skip_reason' => 'logs.skip_reason',
         ] as $input => $column) {
             $value = trim((string) $request->input($input, ''));
             if ($value !== '') {
@@ -500,13 +526,65 @@ class PromotionChannelController extends Controller
             }
         }
         if ($request->filled('start_at')) {
-            $query->where('created_at', '>=', $request->input('start_at').' 00:00:00');
+            $query->where('logs.created_at', '>=', $request->input('start_at').' 00:00:00');
         }
         if ($request->filled('end_at')) {
-            $query->where('created_at', '<=', $request->input('end_at').' 23:59:59');
+            $query->where('logs.created_at', '<=', $request->input('end_at').' 23:59:59');
         }
 
         return $query;
+    }
+
+    private function eventOperatorStats()
+    {
+        $today = date('Y-m-d 00:00:00');
+        $stats = [
+            'page_views_today' => 0,
+            'registers_today' => 0,
+            'first_deposits_today' => 0,
+            'postback_sent_today' => 0,
+            'postback_failed_today' => 0,
+            'postback_skipped_today' => 0,
+            'postback_pending_today' => 0,
+        ];
+
+        if (Schema::hasTable('promotion_event_records')) {
+            $stats['page_views_today'] = $this->countEventsSince(['firstOpen'], $today);
+            $stats['registers_today'] = $this->countEventsSince(['register'], $today);
+            $stats['first_deposits_today'] = $this->countEventsSince(
+                ['firstDeposit', 'firstDepositArrival', 'startTrial'],
+                $today
+            );
+        }
+
+        if (Schema::hasTable('promotion_tracking_postback_logs')) {
+            $postbackCounts = DB::table('promotion_tracking_postback_logs')
+                ->where('created_at', '>=', $today)
+                ->select('status', DB::raw('count(*) as total'))
+                ->groupBy('status')
+                ->pluck('total', 'status')
+                ->all();
+            $stats['postback_sent_today'] = (int) ($postbackCounts['sent'] ?? 0);
+            $stats['postback_failed_today'] = (int) ($postbackCounts['failed'] ?? 0);
+            $stats['postback_skipped_today'] = (int) ($postbackCounts['skipped'] ?? 0);
+            $stats['postback_pending_today'] = (int) ($postbackCounts['pending'] ?? 0);
+        }
+
+        return $stats;
+    }
+
+    private function countEventsSince(array $events, string $since)
+    {
+        return (int) DB::table('promotion_event_records')
+            ->whereIn('event', $events)
+            ->where(function ($query) use ($since) {
+                $query->where('event_at', '>=', $since)
+                    ->orWhere(function ($inner) use ($since) {
+                        $inner->whereNull('event_at')
+                            ->where('created_at', '>=', $since);
+                    });
+            })
+            ->count();
     }
 
     private function audit($action, $module, $content, array $context)

@@ -30,6 +30,11 @@
     .tcg-tool-divider { height: 1px; background: #edf0f5; margin: 12px 0; }
     .tcg-param-row { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(130px, 1fr) 42px; gap: 8px; margin-bottom: 8px; }
     .tcg-param-row .btn { padding-left: 0; padding-right: 0; }
+    .tcg-operator-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 10px; }
+    .tcg-operator-card { border: 1px solid #e5e9f0; background: #fafbfc; padding: 10px 12px; border-radius: 3px; min-height: 88px; }
+    .tcg-operator-card strong { display: block; color: #263446; margin-bottom: 4px; }
+    .tcg-operator-card span { display: block; color: #667085; line-height: 1.5; }
+    .tcg-operator-steps { margin: 0; padding-left: 20px; color: #4b5563; line-height: 1.8; }
     @media (max-width: 767px) {
         .tcg-tool-kv { grid-template-columns: 1fr; }
         .tcg-param-row { grid-template-columns: 1fr; }
@@ -59,6 +64,35 @@
         <div class="box-body">
             <div class="alert alert-info" style="margin-bottom:12px;">
                 本工具面板用于投放链接、Facebook 事件、App Bridge、User-Agent 和 API 加密请求检查。点击保存会同时写入浏览器本地和后台配置文件，操作日志可提交到后台留存。
+            </div>
+
+            <div class="tcg-tool-panel">
+                <div class="tcg-tool-title">运营测试步骤</div>
+                <div class="tcg-tool-body">
+                    <ol class="tcg-operator-steps">
+                        <li>先选择广告平台，生成投放链接，把平台后台给的 Pixel ID、点击ID 宏和代理推荐码填进去。</li>
+                        <li>用链接打开前台，完成注册成功；需要测首充时，继续完成首存到账。</li>
+                        <li>回到“事件记录”，先看像素事件是否出现注册成功和首存到账，再看回传日志是否显示已回传成功。</li>
+                        <li>如果回传日志提示缺少平台 ID 或 Token，先在本页补齐对应平台配置，再重新测试。</li>
+                        <li>测试完成后到广告平台后台核对，广告平台也应收到对应事件。</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="tcg-tool-panel">
+                <div class="tcg-tool-title">平台配置状态</div>
+                <div class="tcg-tool-body">
+                    <div class="tcg-operator-grid">
+                        <div class="tcg-operator-card"><strong>Facebook / Meta</strong><span>填写 Pixel ID、Access Token、测试事件码。注册成功回传 CompleteRegistration，首存到账回传 StartTrial / Purchase。</span></div>
+                        <div class="tcg-operator-card"><strong>Google</strong><span>填写 GA4 ID 或 GTM ID。需要检查 gclid 是否从投放链接进入并随注册、首存事件保存。</span></div>
+                        <div class="tcg-operator-card"><strong>TikTok</strong><span>填写 Pixel ID 和 Access Token。注册成功、发起充值、首存到账都需要在事件记录页看到。</span></div>
+                        <div class="tcg-operator-card"><strong>Kwai</strong><span>填写 kwai_pixel_id。平台支持事件较少，重点看注册成功和首存到账。</span></div>
+                        <div class="tcg-operator-card"><strong>Bigo</strong><span>填写 bigoPixelId。主要核对注册成功 ec_register 和首存到账 ec_purchase。</span></div>
+                        <div class="tcg-operator-card"><strong>OKSpin</strong><span>投放链接必须同时带 pixel_click_id 和 oks_pixel_id，否则无法确认点击ID。</span></div>
+                        <div class="tcg-operator-card"><strong>Voluum</strong><span>投放链接带 cid。注册成功、首存到账、充值到账会按配置回传。</span></div>
+                        <div class="tcg-operator-card"><strong>Red Track</strong><span>投放链接带 rtCid，后台配置回传域名后再测试注册和首存。</span></div>
+                    </div>
+                </div>
             </div>
 
             <div class="nav-tabs-custom">

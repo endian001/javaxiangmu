@@ -195,3 +195,41 @@ test('backend records pixel events and ties recharge arrival back to user tracki
   assert.match(rechargePass, /PromotionPixelEventService/);
   assert.match(rechargePass, /recordDepositArrival\(\$model/);
 });
+
+test('admin pixel tracking pages use operator friendly labels', () => {
+  const promotionView = read('resources/views/admin/promotion-channel.blade.php');
+  const shellView = read('resources/views/admin/tcg-shell.blade.php');
+  const pixelToolsView = read('resources/views/admin/tcg-pixel-tools.blade.php');
+
+  for (const label of [
+    '运营总览',
+    '已回传成功',
+    '回传失败',
+    '未发送',
+    '缺少平台 ID 或 Token',
+    '平台暂不支持该事件',
+    '首存到账',
+    '点击ID',
+    '查看详情'
+  ]) {
+    assert.ok(promotionView.includes(label), label);
+  }
+
+  for (const label of [
+    '运营测试步骤',
+    '生成投放链接',
+    '用链接打开前台',
+    '默认展示给运营',
+  ]) {
+    assert.ok(shellView.includes(label), label);
+  }
+
+  for (const label of [
+    '运营测试步骤',
+    '注册成功',
+    '广告平台也应收到对应事件',
+    '平台配置状态'
+  ]) {
+    assert.ok(pixelToolsView.includes(label), label);
+  }
+});

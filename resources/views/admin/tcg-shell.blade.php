@@ -415,6 +415,14 @@
     .tcg-extension-tabs { margin:0; border-bottom:0; }
     .tcg-extension-tabs > li > a { margin-right:8px; padding:7px 12px; color:#667085; background:#fff; border:1px solid #dfe4ec; border-radius:4px; }
     .tcg-extension-tabs > li.active > a, .tcg-extension-tabs > li.active > a:hover, .tcg-extension-tabs > li.active > a:focus { color:#337ab7; background:#eef6ff; border-color:#b9d5f5; }
+    .tcg-pixel-operator { border:1px solid #d9e7f7; background:#f6fbff; margin-bottom:12px; border-radius:4px; }
+    .tcg-pixel-operator__head { padding:11px 13px; border-bottom:1px solid #e4eef8; font-weight:600; color:#263446; }
+    .tcg-pixel-operator__body { padding:12px 13px; }
+    .tcg-pixel-operator__steps { margin:0; padding-left:20px; color:#4b5563; line-height:1.8; }
+    .tcg-pixel-operator__cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-top:12px; }
+    .tcg-pixel-operator__card { background:#fff; border:1px solid #e4ebf3; padding:10px 12px; min-height:76px; }
+    .tcg-pixel-operator__card strong { display:block; color:#263446; margin-bottom:4px; }
+    .tcg-pixel-operator__card span { display:block; color:#667085; line-height:1.45; }
 </style>
 
 <div
@@ -430,6 +438,24 @@
             <strong>{{ $page['title'] }}</strong>
             <span class="text-muted">({{ $page['category'] }} / {{ $page['code'] }})</span>
             <div class="text-muted" style="margin-top:6px;">{{ $page['summary'] ?? '' }}</div>
+        </div>
+    @else
+        <div class="tcg-pixel-operator" data-purpose="默认展示给运营">
+            <div class="tcg-pixel-operator__head">运营测试步骤</div>
+            <div class="tcg-pixel-operator__body">
+                <ol class="tcg-pixel-operator__steps">
+                    <li>生成投放链接，把广告平台的 Pixel ID、点击ID 宏和代理推荐码放进链接。</li>
+                    <li>用链接打开前台，完成注册成功；需要测首充时，继续完成首存到账。</li>
+                    <li>到事件记录页确认像素事件出现，再看回传日志是否显示已回传成功。</li>
+                    <li>如果日志显示缺少平台 ID 或 Token，先补齐平台配置后重新测试。</li>
+                </ol>
+                <div class="tcg-pixel-operator__cards">
+                    <div class="tcg-pixel-operator__card"><strong>Facebook / Meta</strong><span>看 Pixel ID、Access Token、测试事件码。</span></div>
+                    <div class="tcg-pixel-operator__card"><strong>Google</strong><span>看 GA4 ID / GTM ID 和 gclid。</span></div>
+                    <div class="tcg-pixel-operator__card"><strong>TikTok / Kwai</strong><span>重点核对注册成功和首存到账。</span></div>
+                    <div class="tcg-pixel-operator__card"><strong>渠道回传</strong><span>Voluum、Red Track、OKSpin 等要确认点击ID。</span></div>
+                </div>
+            </div>
         </div>
     @endif
 
