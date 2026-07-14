@@ -273,31 +273,76 @@ class TrackingPostbackDispatcher
 
     public function sendRequest(array $request): array
     {
-        if (!class_exists('\GuzzleHttp\Client')) {
-            return ['status' => 'failed', 'response_status' => null, 'response_body' => 'http_client_missing'];
-        }
+        if (class_exists('\GuzzleHttp\Client')) {
+            try {
+                $client = new \GuzzleHttp\Client(['timeout' => 4, 'connect_timeout' => 2, 'http_errors' => false]);
+                $method = $request['request_method'] ?? 'GET';
+                $options = [
+                    'headers' => $request['request_headers'] ?? [],
+                ];
+                if ($method === 'POST') {
+                    $options['json'] = $request['request_payload'] ?? [];
+                }
 
-        try {
-            $client = new \GuzzleHttp\Client(['timeout' => 4, 'connect_timeout' => 2, 'http_errors' => false]);
-            $method = $request['request_method'] ?? 'GET';
-            $options = [
-                'headers' => $request['request_headers'] ?? [],
-            ];
-            if ($method === 'POST') {
-                $options['json'] = $request['request_payload'] ?? [];
+                $response = $client->request($method, $request['request_url'], $options);
+                $status = (int) $response->getStatusCode();
+
+                return [
+                    'status' => $status >= 200 && $status < 300 ? 'sent' : 'failed',
+                    'response_status' => $status,
+                    'response_body' => (string) $response->getBody(),
+                ];
+            } catch (\Throwable $e) {
+                return ['status' => 'failed', 'response_status' => null, 'response_body' => $e->getMessage()];
             }
-
-            $response = $client->request($method, $request['request_url'], $options);
-            $status = (int) $response->getStatusCode();
-
-            return [
-                'status' => $status >= 200 && $status < 300 ? 'sent' : 'failed',
-                'response_status' => $status,
-                'response_body' => (string) $response->getBody(),
-            ];
-        } catch (\Throwable $e) {
-            return ['status' => 'failed', 'response_status' => null, 'response_body' => $e->getMessage()];
         }
+
+        if (function_exists('curl_init')) {
+            return $this->sendWithCurl($request);
+        }
+
+        return ['status' => 'failed', 'response_status' => null, 'response_body' => 'http_client_missing'];
+    }
+
+    private function sendWithCurl(array $request): array
+    {
+        $url = trim((string) ($request['request_url'] ?? ''));
+        if ($url === '') {
+            return ['status' => 'failed', 'response_status' => null, 'response_body' => 'missing_request_url'];
+        }
+
+        $method = strtoupper((string) ($request['request_method'] ?? 'GET'));
+        $headers = [];
+        foreach (($request['request_headers'] ?? []) as $key => $value) {
+            $headers[] = is_int($key) ? (string) $value : $key.': '.$value;
+        }
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+        if ($headers) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        }
+        if ($method === 'POST') {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $this->json($request['request_payload'] ?? []));
+        }
+
+        $body = curl_exec($ch);
+        $error = curl_error($ch);
+        $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($body === false) {
+            return ['status' => 'failed', 'response_status' => null, 'response_body' => $error ?: 'curl_request_failed'];
+        }
+
+        return [
+            'status' => $status >= 200 && $status < 300 ? 'sent' : 'failed',
+            'response_status' => $status ?: null,
+            'response_body' => (string) $body,
+        ];
     }
 
     private function insertLog($conversionId, array $conversion, array $attribution, string $platform, $platformEvent, array $request): int
