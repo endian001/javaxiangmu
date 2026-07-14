@@ -109,10 +109,120 @@
         'sms_sender' => '短信签名',
         'sms_daily_limit' => '每日发送上限',
         'sms_enabled' => '短信开关',
+        'username_register_enabled' => '用户名注册',
+        'username_register_otp' => '用户名注册验证方式',
+        'mobile_register_enabled' => '手机号码注册',
+        'mobile_register_otp' => '手机号码注册验证方式',
+        'email_register_enabled' => '邮件注册',
+        'email_register_otp' => '邮件注册验证方式',
+        'captcha_enabled' => '启用验证码',
+        'frontend_register_fields' => '前台注册栏位',
+        'login_unique_ip_enabled' => '玩家使用唯一 IP 登录',
+        'multi_device_login_enabled' => '可使用多装置登录',
+        'login_password_error_limit' => '账号错误密码上限限制',
+        'auto_login_enabled' => '自动登录',
+        'sms_otp_login_enabled' => '短信 OTP 登录',
+        'email_otp_login_enabled' => '邮件 OTP 登录',
+        'third_party_login_enabled' => '三方注册登录',
+        'forgot_password_enabled' => '找回密码功能',
+        'verification_mechanism' => '验证机制设置',
+        'captcha_positions' => '验证码位置',
+        'ip_limit_enabled' => 'IP 限制设置',
+        'developer_tool_captcha_enabled' => '开发者工具验证码',
+        'member_level_enabled' => '玩家等级',
+        'member_rebate_enabled' => '玩家自助返水',
+        'member_avatar_count' => '玩家头像数量',
+        'member_age_limit' => '玩家年龄限制',
+        'member_login_info_enabled' => '登录信息',
+        'member_realname_verification_enabled' => '实名认证',
+        'member_bank_realname_visible' => '显示绑卡真实姓名',
+        'member_transfer_to_parent_enabled' => '转给上级',
+        'member_transfer_manual_audit' => '手动审核',
+        'member_message_enabled' => '站内信',
+        'member_inbox_enabled' => '收信箱',
+        'member_outbox_enabled' => '发信箱',
+        'agent_center_enabled' => '代理中心',
+        'agent_register_enabled' => '代理开户',
+        'agent_register_type' => '开户类型',
+        'agent_default_max_series' => '系列值默认最高',
+        'agent_link_valid_days' => '链接有效期',
+        'agent_channel_menu_enabled' => '渠道选单',
+        'agent_default_link_type' => '默认代理链接类型',
+        'agent_default_domain' => '代理链接默认域名',
+        'agent_red_packet_enabled' => '红包雨功能',
+        'agent_manual_audit' => '手动审核',
+        'agent_subordinate_management_enabled' => '下级管理',
+        'agent_subordinate_mobile_visible' => '显示下级手机号码',
     ];
     $fieldLabel = function ($field) use ($fieldLabels) {
         return $fieldLabels[$field] ?? str_replace('_', ' ', $field);
     };
+    $settingSections = $page['setting_sections'] ?? [];
+    $switchOptions = ['1' => '开启', '0' => '关闭'];
+    $settingFieldOptions = [
+        'username_register_otp' => ['none' => '不需验证', 'sms' => '短信 OTP', 'email' => '邮件 OTP'],
+        'mobile_register_otp' => ['none' => '不需验证', 'sms' => '短信 OTP'],
+        'email_register_otp' => ['none' => '不需验证', 'email' => '邮件 OTP'],
+        'agent_register_type' => ['all' => '全部开放', 'invite' => '邀请码开户', 'audit' => '申请后审核'],
+        'agent_default_link_type' => ['pc' => 'PC 链接', 'wap' => 'WAP 链接', 'auto' => '自动识别'],
+    ];
+    $settingFieldHints = [
+        'frontend_register_fields' => '多个栏位用英文逗号分隔，例如 realname,birthday,line。',
+        'verification_mechanism' => '填写验证规则名称或说明，例如 滑块、图形验证码、OTP。',
+        'captcha_positions' => '多个位置用英文逗号分隔，例如 register,login,forgot_password。',
+        'agent_default_domain' => '可填写完整域名；留空时使用当前站点域名。',
+    ];
+    $settingSelectFields = [
+        'username_register_otp',
+        'mobile_register_otp',
+        'email_register_otp',
+        'agent_register_type',
+        'agent_default_link_type',
+    ];
+    $settingNumberFields = [
+        'login_password_error_limit',
+        'member_avatar_count',
+        'member_age_limit',
+        'agent_default_max_series',
+        'agent_link_valid_days',
+    ];
+    $settingTextAreaFields = [
+        'frontend_register_fields',
+        'verification_mechanism',
+        'captcha_positions',
+    ];
+    $settingBooleanFields = [
+        'username_register_enabled',
+        'mobile_register_enabled',
+        'email_register_enabled',
+        'captcha_enabled',
+        'login_unique_ip_enabled',
+        'multi_device_login_enabled',
+        'auto_login_enabled',
+        'sms_otp_login_enabled',
+        'email_otp_login_enabled',
+        'third_party_login_enabled',
+        'forgot_password_enabled',
+        'ip_limit_enabled',
+        'developer_tool_captcha_enabled',
+        'member_level_enabled',
+        'member_rebate_enabled',
+        'member_login_info_enabled',
+        'member_realname_verification_enabled',
+        'member_bank_realname_visible',
+        'member_transfer_to_parent_enabled',
+        'member_transfer_manual_audit',
+        'member_message_enabled',
+        'member_inbox_enabled',
+        'member_outbox_enabled',
+        'agent_center_enabled',
+        'agent_register_enabled',
+        'agent_channel_menu_enabled',
+        'agent_red_packet_enabled',
+        'agent_manual_audit',
+        'agent_subordinate_management_enabled',
+        'agent_subordinate_mobile_visible',
+    ];
     $textareaFields = ['content', 'encontent', 'description', 'remark', 'info'];
     $numberFields = [
         'bank_id', 'cateid', 'stor', 'sort_order', 'type', 'required_new_members',
@@ -161,68 +271,166 @@
         </div>
 
         <div class="card-body">
-            <form method="GET" class="form-inline platform-operations-filter mb-3">
-                @foreach ($page['filters'] as $filter)
-                    <div class="form-group mr-2 mb-2">
-                        <label class="mr-1">{{ $fieldLabel($filter) }}</label>
-                        @if ($filter === 'status' && !empty($statusOptions))
-                            <select class="form-control form-control-sm" name="status">
-                                <option value="">全部</option>
-                                @foreach ($statusOptions as $value => $label)
-                                    <option
-                                        value="{{ $value }}"
-                                        {{ (string) request('status') === (string) $value ? 'selected' : '' }}
-                                    >
-                                        {{ $label }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        @elseif (in_array($filter, ['date_from', 'date_to'], true))
-                            <input
-                                type="date"
-                                class="form-control form-control-sm"
-                                name="{{ $filter }}"
-                                value="{{ request($filter) }}"
-                            >
-                        @else
-                            <input
-                                type="text"
-                                class="form-control form-control-sm"
-                                name="{{ $filter }}"
-                                value="{{ request($filter) }}"
-                            >
-                        @endif
-                    </div>
-                @endforeach
-                <button type="submit" class="btn btn-sm btn-primary mb-2">
-                    <i class="fa fa-search"></i> 筛选
-                </button>
-                <a href="{{ url()->current() }}" class="btn btn-sm btn-light ml-2 mb-2">重置</a>
-            </form>
+            @if (!($mode === 'settings' && !empty($settingSections)))
+                <form method="GET" class="form-inline platform-operations-filter mb-3">
+                    @foreach ($page['filters'] as $filter)
+                        <div class="form-group mr-2 mb-2">
+                            <label class="mr-1">{{ $fieldLabel($filter) }}</label>
+                            @if ($filter === 'status' && !empty($statusOptions))
+                                <select class="form-control form-control-sm" name="status">
+                                    <option value="">全部</option>
+                                    @foreach ($statusOptions as $value => $label)
+                                        <option
+                                            value="{{ $value }}"
+                                            {{ (string) request('status') === (string) $value ? 'selected' : '' }}
+                                        >
+                                            {{ $label }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            @elseif (in_array($filter, ['date_from', 'date_to'], true))
+                                <input
+                                    type="date"
+                                    class="form-control form-control-sm"
+                                    name="{{ $filter }}"
+                                    value="{{ request($filter) }}"
+                                >
+                            @else
+                                <input
+                                    type="text"
+                                    class="form-control form-control-sm"
+                                    name="{{ $filter }}"
+                                    value="{{ request($filter) }}"
+                                >
+                            @endif
+                        </div>
+                    @endforeach
+                    <button type="submit" class="btn btn-sm btn-primary mb-2">
+                        <i class="fa fa-search"></i> 筛选
+                    </button>
+                    <a href="{{ url()->current() }}" class="btn btn-sm btn-light ml-2 mb-2">重置</a>
+                </form>
+            @endif
 
             @if ($mode === 'settings')
-                <form class="platform-operation-settings-form">
-                    <input type="hidden" name="section" value="general">
-                    <div class="row">
-                        @foreach (($page['setting_fields'] ?? []) as $field)
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    <label>{{ $fieldLabel($field) }}</label>
-                                    <input
-                                        type="text"
-                                        class="form-control"
-                                        name="{{ $field }}"
-                                        value="{{ $values[$field] ?? '' }}"
-                                        autocomplete="off"
-                                    >
+                @if (!empty($settingSections))
+                    <div class="platform-site-settings" aria-label="安全设置 会员中心 代理中心">
+                        <div class="row">
+                            <div class="col-md-2">
+                                <ul class="nav nav-pills nav-stacked flex-column platform-site-settings-nav" role="tablist">
+                                    @foreach ($settingSections as $sectionKey => $section)
+                                        <li class="nav-item">
+                                            <a
+                                                class="nav-link {{ $loop->first ? 'active' : '' }}"
+                                                href="#platform-site-settings-{{ $sectionKey }}"
+                                                data-toggle="tab"
+                                                data-setting-section="{{ $sectionKey }}"
+                                            >
+                                                {{ $section['title'] }}
+                                            </a>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            </div>
+                            <div class="col-md-10">
+                                <div class="tab-content">
+                                    @foreach ($settingSections as $sectionKey => $section)
+                                        <div
+                                            class="tab-pane {{ $loop->first ? 'active' : '' }}"
+                                            id="platform-site-settings-{{ $sectionKey }}"
+                                        >
+                                            <form class="platform-operation-settings-form">
+                                                <input type="hidden" name="section" value="{{ $sectionKey }}">
+                                                <div class="platform-site-settings-header">
+                                                    <h4>{{ $section['title'] }}</h4>
+                                                    <p>{{ $section['description'] ?? '' }}</p>
+                                                </div>
+                                                <div class="row">
+                                                    @foreach (($section['fields'] ?? []) as $field)
+                                                        @php
+                                                            $value = $values[$field] ?? '';
+                                                        @endphp
+                                                        <div class="col-md-6">
+                                                            <div class="form-group">
+                                                                <label>{{ $fieldLabel($field) }}</label>
+                                                                @if (in_array($field, $settingBooleanFields, true))
+                                                                    <select class="form-control" name="{{ $field }}">
+                                                                        <option value="">未设置</option>
+                                                                        @foreach ($switchOptions as $optionValue => $optionLabel)
+                                                                            <option value="{{ $optionValue }}" {{ (string) $value === (string) $optionValue ? 'selected' : '' }}>
+                                                                                {{ $optionLabel }}
+                                                                            </option>
+                                                                        @endforeach
+                                                                    </select>
+                                                                @elseif (in_array($field, $settingSelectFields, true))
+                                                                    <select class="form-control" name="{{ $field }}">
+                                                                        <option value="">未设置</option>
+                                                                        @foreach (($settingFieldOptions[$field] ?? []) as $optionValue => $optionLabel)
+                                                                            <option value="{{ $optionValue }}" {{ (string) $value === (string) $optionValue ? 'selected' : '' }}>
+                                                                                {{ $optionLabel }}
+                                                                            </option>
+                                                                        @endforeach
+                                                                    </select>
+                                                                @elseif (in_array($field, $settingTextAreaFields, true))
+                                                                    <textarea
+                                                                        class="form-control"
+                                                                        name="{{ $field }}"
+                                                                        rows="3"
+                                                                        autocomplete="off"
+                                                                    >{{ $value }}</textarea>
+                                                                @else
+                                                                    <input
+                                                                        type="{{ in_array($field, $settingNumberFields, true) ? 'number' : ($field === 'agent_url' ? 'url' : 'text') }}"
+                                                                        class="form-control"
+                                                                        name="{{ $field }}"
+                                                                        value="{{ $value }}"
+                                                                        autocomplete="off"
+                                                                    >
+                                                                @endif
+                                                                @if (!empty($settingFieldHints[$field]))
+                                                                    <small class="form-text text-muted">{{ $settingFieldHints[$field] }}</small>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                                <button type="submit" class="btn btn-primary">
+                                                    <i class="fa fa-save"></i> 提交
+                                                </button>
+                                                <button type="button" class="btn btn-light ml-2" onclick="window.location.reload()">
+                                                    取消
+                                                </button>
+                                            </form>
+                                        </div>
+                                    @endforeach
                                 </div>
                             </div>
-                        @endforeach
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fa fa-save"></i> 保存配置
-                    </button>
-                </form>
+                @else
+                    <form class="platform-operation-settings-form">
+                        <input type="hidden" name="section" value="general">
+                        <div class="row">
+                            @foreach (($page['setting_fields'] ?? []) as $field)
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>{{ $fieldLabel($field) }}</label>
+                                        <input
+                                            type="text"
+                                            class="form-control"
+                                            name="{{ $field }}"
+                                            value="{{ $values[$field] ?? '' }}"
+                                            autocomplete="off"
+                                        >
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fa fa-save"></i> 保存配置
+                        </button>
+                    </form>
+                @endif
             @else
                 <div class="d-flex align-items-center mb-3">
                     @if ($canCreate)
@@ -391,6 +599,40 @@
         </div>
     </div>
 </div>
+
+<style>
+.platform-site-settings {
+    border-top: 1px solid #eef1f5;
+    padding-top: 12px;
+}
+.platform-site-settings-nav .nav-link {
+    border: 1px solid #e8edf4;
+    border-radius: 4px;
+    color: #4b5563;
+    margin-bottom: 8px;
+    padding: 10px 12px;
+}
+.platform-site-settings-nav .nav-link.active {
+    background: #eef6ff;
+    border-color: #4aa3ff;
+    color: #1677d2;
+    font-weight: 600;
+}
+.platform-site-settings-header {
+    border-bottom: 1px solid #eef1f5;
+    margin-bottom: 16px;
+    padding-bottom: 10px;
+}
+.platform-site-settings-header h4 {
+    color: #1f2937;
+    font-size: 18px;
+    margin: 0 0 6px;
+}
+.platform-site-settings-header p {
+    color: #6b7280;
+    margin: 0;
+}
+</style>
 
 <script>
 Dcat.ready(function () {
