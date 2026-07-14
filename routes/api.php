@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 Route::post('/login','Api\AuthController@login');
 Route::post('/login_pc','Api\AuthController@login_pc');
 Route::post('/register','Api\AuthController@register');
+Route::match(['get', 'post'], '/pixel/event','Api\PixelController@record');
 Route::get('/promotions/categories','Api\PromotionController@categories');
 Route::get('/promotions/popup','Api\PromotionController@popup');
 Route::post('/promotions/{id}/exposure','Api\PromotionController@recordExposure');

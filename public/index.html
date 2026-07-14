@@ -145,13 +145,14 @@
   var notice=p==='/notice'||p==='/notices'||p==='/announcement'||p==='/announcements';
   var member=p==='/member/center'||p==='/member/wallet'||p==='/member/recharge'||p==='/member/withdraw'||p==='/member/agent'||p==='/wallet'||p==='/recharge'||p==='/withdraw';
   if((p==='/'||p==='/index.html')&&(h==='/login'||h==='/register')){location.replace(h+(location.hash.indexOf('?')>=0?location.hash.slice(location.hash.indexOf('?')):''));return;}
-  var auth=p==='/login'||p==='/register';
+  var auth=p==='/login'||p==='/register'||p==='/m/login'||p==='/m/register';
   var catalog=p==='/gaming'||p==='/sport'||p==='/realbet'||p==='/joker'||p==='/lottery';
   var launch=p==='/gaming'&&(location.search.indexOf('platform_name=')!==-1||location.search.indexOf('plat_name=')!==-1||location.search.indexOf('game_code=')!==-1||location.search.indexOf('game_type=')!==-1);
-  if(innerWidth<=540&&!promo&&!notice&&!member&&!auth&&!catalog&&!launch&&!location.pathname.startsWith('/new-h5'))location.href='/new-h5/';
+  if(innerWidth<=540&&!promo&&!notice&&!member&&!auth&&!catalog&&!launch&&!location.pathname.startsWith('/new-h5'))location.replace('/new-h5/'+location.search+location.hash);
 }());
 </script>
-<script src="/assets/home-operations.js?v=20260714agent1" defer></script>
+<script src="/assets/pixel-tracking.js?v=20260714pixel2" defer></script>
+<script src="/assets/home-operations.js?v=20260714agent2" defer></script>
 <script src="/assets/promotion-core.js?v=20260713ops4" defer></script>
 <script src="/assets/promotion-system.js?v=20260713ops4" defer></script>
 <script>

@@ -114,14 +114,18 @@
   function isAuthPath() {
     var path = location.pathname.replace(/\/+$/, '') || '/';
     return path === '/login' ||
-      path === '/register';
+      path === '/register' ||
+      path === '/m/login' ||
+      path === '/m/register' ||
+      path === '/new-h5/login' ||
+      path === '/new-h5/register';
   }
 
   function normalizeLegacyAuthHash() {
     var path = location.pathname.replace(/\/+$/, '') || '/';
     var hash = location.hash || '';
     var hashPath = hash.replace(/^#/, '').split('?')[0].replace(/\/+$/, '') || '';
-    if ((path === '/' || path === '/index.html') && (hashPath === '/login' || hashPath === '/register')) {
+    if ((path === '/' || path === '/index.html') && (hashPath === '/login' || hashPath === '/register' || hashPath === '/m/login' || hashPath === '/m/register' || hashPath === '/new-h5/login' || hashPath === '/new-h5/register')) {
       var hashQuery = hash.indexOf('?') >= 0 ? hash.slice(hash.indexOf('?')) : '';
       location.replace(hashPath + hashQuery);
       return true;
@@ -221,6 +225,12 @@
 
   function apiPost(path, body, token) {
     return postJson(path, body || {}, authHeaders(token || currentAuthToken()));
+  }
+
+  function trackPixelEvent(name, payload) {
+    if (window.TH2WPixel && typeof window.TH2WPixel.track === 'function') {
+      window.TH2WPixel.track(name, payload || {});
+    }
   }
 
   function payloadCode(payload) {
@@ -389,7 +399,7 @@
   function renderAuthPage() {
     var path = location.pathname.replace(/\/+$/, '') || '/';
     var hashPath = location.hash.replace(/^#/, '').split('?')[0].replace(/\/+$/, '') || '';
-    var registering = path === '/register' || hashPath === '/register';
+    var registering = path === '/register' || path === '/m/register' || path === '/new-h5/register' || hashPath === '/register' || hashPath === '/m/register' || hashPath === '/new-h5/register';
     var hashQuery = location.hash.indexOf('?') >= 0 ? location.hash.slice(location.hash.indexOf('?')) : '';
     var searchParams = new URLSearchParams(location.search || hashQuery || '');
     var redirect = searchParams.get('redirect') || '/member/center';
@@ -451,6 +461,9 @@
       });
       var endpoint = mode === 'register' ? '/api/register' : '/api/login';
       var requestBody = authRequestBody(mode, body);
+      if (mode === 'register') {
+        trackPixelEvent('registerSubmit', { username: requestBody.name || '' });
+      }
       if (message) {
         message.textContent = '正在处理...';
       }
@@ -459,6 +472,11 @@
           var token = extractAuthToken(payload);
           if (token) {
             storeAuthToken(token);
+            if (mode === 'register') {
+              trackPixelEvent('register', { username: requestBody.name || '' });
+            } else {
+              trackPixelEvent('login', { username: requestBody.name || '' });
+            }
             if (message) {
               message.textContent = '成功，正在进入会员中心';
             }
@@ -1136,6 +1154,11 @@
       }
       submit.disabled = true;
       submit.textContent = '提交中...';
+      trackPixelEvent('depositSubmit', {
+        amount: amount,
+        paytype: selected.paytype,
+        catepay: selected.catepay
+      });
       apiPost('/api/recharge', {
         amount: amount,
         paytype: selected.paytype,
@@ -1202,6 +1225,7 @@
       submit.textContent = '提交中...';
       apiPost('/api/withdraw', { amount: amount, bank: card, password: password }, token).then(function (payload) {
         if (payloadCode(payload) === 200) {
+          trackPixelEvent('withdraw', { amount: amount });
           setMemberInlineState(root, '提现申请已提交，等待后台审核。');
           loadMemberHistory(token);
           loadMemberToolData(token);

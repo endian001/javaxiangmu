@@ -21,20 +21,25 @@ class UserActivityLogger
 
         // 记录用户活动
         if (auth()->check()) {
-            $user = auth()->user();
-            
-            UserActivity::create([
-                'user_id' => $user->id,
-                'action' => $this->getActionName($request),
-                'details' => $this->getActionDetails($request),
-                'ip' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'device' => $this->getDevice($request->userAgent()),
-                'browser' => $this->getBrowser($request->userAgent()),
-                'os' => $this->getOS($request->userAgent()),
-                'url' => $request->fullUrl(),
-                'referer' => $request->header('referer'),
-            ]);
+            try {
+                $user = auth()->user();
+                $userAgent = (string) $request->userAgent();
+
+                UserActivity::create([
+                    'user_id' => $user->id,
+                    'action' => $this->limitText($this->getActionName($request), 255),
+                    'details' => $this->getActionDetails($request),
+                    'ip' => $this->limitText($request->ip(), 50),
+                    'user_agent' => $this->limitText($userAgent, 255),
+                    'device' => $this->limitText($this->getDevice($userAgent), 100),
+                    'browser' => $this->limitText($this->getBrowser($userAgent), 100),
+                    'os' => $this->limitText($this->getOS($userAgent), 100),
+                    'url' => $this->limitText($request->fullUrl(), 255),
+                    'referer' => $this->limitText($request->header('referer'), 255),
+                ]);
+            } catch (\Throwable $e) {
+                // Activity audit must never block player flows such as register/login.
+            }
         }
 
         return $response;
@@ -59,10 +64,20 @@ class UserActivityLogger
         $details = [];
         
         if ($request->method() === 'POST' || $request->method() === 'PUT') {
-            $details['input'] = $request->except(['password', 'password_confirmation']);
+            $details['input'] = $request->except(['password', 'password_confirmation', 'qukuanmima', 'paypassword', 'paypwd']);
         }
         
         return json_encode($details);
+    }
+
+    protected function limitText($value, $limit)
+    {
+        $value = trim((string) $value);
+        if ($value === '') {
+            return null;
+        }
+
+        return mb_substr($value, 0, $limit);
     }
     
     /**
