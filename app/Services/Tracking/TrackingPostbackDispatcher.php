@@ -43,6 +43,86 @@ class TrackingPostbackDispatcher
         }
     }
 
+    public function dispatchPending(int $limit = 50): array
+    {
+        if (!Schema::hasTable('promotion_tracking_postback_logs')) {
+            return ['processed' => 0, 'sent' => 0, 'failed' => 0, 'skipped' => 0];
+        }
+
+        $summary = ['processed' => 0, 'sent' => 0, 'failed' => 0, 'skipped' => 0];
+        $logs = DB::table('promotion_tracking_postback_logs')
+            ->where('status', 'pending')
+            ->where(function ($query) {
+                $query->whereNull('next_retry_at')->orWhere('next_retry_at', '<=', now());
+            })
+            ->orderBy('id')
+            ->limit(max(1, min($limit, 500)))
+            ->get();
+
+        foreach ($logs as $log) {
+            $summary['processed']++;
+            $conversion = DB::table('promotion_tracking_conversions')->where('id', $log->conversion_event_id)->first();
+            if (!$conversion) {
+                DB::table('promotion_tracking_postback_logs')->where('id', $log->id)->update([
+                    'status' => 'skipped',
+                    'skip_reason' => 'missing_conversion',
+                    'updated_at' => now(),
+                ]);
+                $summary['skipped']++;
+                continue;
+            }
+
+            $attribution = $conversion->attribution_id
+                ? DB::table('promotion_tracking_attributions')->where('id', $conversion->attribution_id)->first()
+                : null;
+            $conversionArray = $this->recordToArray($conversion);
+            $attributionArray = $attribution ? $this->recordToArray($attribution) : [];
+            $tracking = $this->decodeJson($attributionArray['params_json'] ?? null);
+            $definition = TrackingPlatformCatalog::platforms()[$log->platform] ?? null;
+            $platformEvent = TrackingPlatformCatalog::eventName($log->platform, $log->event_name);
+
+            if (!$definition || !$platformEvent) {
+                DB::table('promotion_tracking_postback_logs')->where('id', $log->id)->update([
+                    'status' => 'skipped',
+                    'skip_reason' => 'event_not_supported',
+                    'updated_at' => now(),
+                ]);
+                $summary['skipped']++;
+                continue;
+            }
+
+            $request = $this->buildRequest($log->platform, $definition, $platformEvent, $conversionArray, $attributionArray, $tracking);
+            if (($request['status'] ?? '') !== 'pending') {
+                DB::table('promotion_tracking_postback_logs')->where('id', $log->id)->update([
+                    'status' => $request['status'] ?? 'skipped',
+                    'skip_reason' => $request['skip_reason'] ?? null,
+                    'updated_at' => now(),
+                ]);
+                $summary[$request['status'] ?? 'skipped'] = ($summary[$request['status'] ?? 'skipped'] ?? 0) + 1;
+                continue;
+            }
+
+            $result = $this->sendRequest($request);
+            $status = $result['status'] ?? 'failed';
+            DB::table('promotion_tracking_postback_logs')->where('id', $log->id)->update([
+                'request_method' => $request['request_method'] ?? null,
+                'request_url' => $this->maskUrl($request['request_url'] ?? null),
+                'request_headers' => $this->json($this->maskHeaders($request['request_headers'] ?? null)),
+                'request_payload' => $this->json($request['request_payload'] ?? null),
+                'status' => $status,
+                'response_status' => $result['response_status'] ?? null,
+                'response_body' => $this->limitText($result['response_body'] ?? null, 8000),
+                'attempts' => ((int) ($log->attempts ?? 0)) + 1,
+                'sent_at' => $status === 'sent' ? now() : null,
+                'next_retry_at' => $status === 'failed' ? now()->addMinutes(10) : null,
+                'updated_at' => now(),
+            ]);
+            $summary[$status] = ($summary[$status] ?? 0) + 1;
+        }
+
+        return $summary;
+    }
+
     public function buildRequest(string $platform, array $definition, string $platformEvent, array $conversion, array $attribution, array $tracking): array
     {
         if (!empty($definition['browser_only'])) {
@@ -89,7 +169,7 @@ class TrackingPostbackDispatcher
             return [
                 'status' => 'pending',
                 'request_method' => 'POST',
-                'request_url' => 'https://graph.facebook.com/v17.0/'.rawurlencode($pixelId).'/events',
+                'request_url' => 'https://graph.facebook.com/v17.0/'.rawurlencode($pixelId).'/events?access_token='.rawurlencode($token),
                 'request_headers' => ['Content-Type' => 'application/json'],
                 'request_payload' => $payload,
             ];
@@ -105,7 +185,7 @@ class TrackingPostbackDispatcher
                 'status' => 'pending',
                 'request_method' => 'POST',
                 'request_url' => 'https://business-api.tiktok.com/open_api/v1.3/event/track/',
-                'request_headers' => ['Content-Type' => 'application/json', 'Access-Token' => $this->maskSecret($token)],
+                'request_headers' => ['Content-Type' => 'application/json', 'Access-Token' => $token],
                 'request_payload' => [
                     'event_source' => 'web',
                     'event_source_id' => $pixelId,
@@ -306,6 +386,11 @@ class TrackingPostbackDispatcher
         }
 
         return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    }
+
+    private function recordToArray($record): array
+    {
+        return json_decode(json_encode($record), true) ?: [];
     }
 
     private function maskUrl($url)

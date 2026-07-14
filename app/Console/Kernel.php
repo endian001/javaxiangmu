@@ -50,6 +50,10 @@ class Kernel extends ConsoleKernel
             ->hourly()
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/admin-ops-audit.log'));
+        $schedule->command('tracking:dispatch-postbacks --limit=50')
+            ->everyMinute()
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/tracking-postbacks.log'));
     }
 
     /**

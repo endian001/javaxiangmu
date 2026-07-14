@@ -177,6 +177,7 @@ class MultiPlatformTrackingSourceTest extends TestCase
             'promotion_tracking_postback_logs',
             'buildRequest',
             'sendRequest',
+            'dispatchPending',
             'request_url',
             'request_payload',
             'response_body',
@@ -193,5 +194,12 @@ class MultiPlatformTrackingSourceTest extends TestCase
         ] as $needle) {
             $this->assertStringContainsString($needle, $config, $needle);
         }
+
+        $command = $this->read('app/Console/Commands/DispatchTrackingPostbacks.php');
+        $kernel = $this->read('app/Console/Kernel.php');
+        $this->assertStringContainsString('tracking:dispatch-postbacks', $command);
+        $this->assertStringContainsString('dispatchPending($limit)', $command);
+        $this->assertStringContainsString('tracking:dispatch-postbacks --limit=50', $kernel);
+        $this->assertStringContainsString('tracking-postbacks.log', $kernel);
     }
 }
