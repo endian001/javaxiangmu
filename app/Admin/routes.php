@@ -110,6 +110,7 @@ Route::group([
 	$router->post('/tcg/game-management/{code}/status', 'GameManagementController@changeStatus');
 	$router->post('/tcg/game-management/{code}/import', 'GameManagementController@import');
 	$router->get('/tcg/game-management/{code}/export', 'GameManagementController@export');
+	$router->get('/tcg/12660', 'PlayerOnlinePanelController@index');
 	$router->get('/tcg/ops/{code}', 'TcgOperationalRecordsController@index');
 	$router->post('/tcg/ops/{code}/records', 'TcgOperationalRecordsController@save');
 	$router->put('/tcg/ops/{code}/records/{id}', 'TcgOperationalRecordsController@save');
