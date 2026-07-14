@@ -10,6 +10,7 @@
 | `middleware-chain.md` | Laravel HTTP 中间件链、CORS、locale、API 鉴权、Web session 与后台 middleware |
 | `wallet-and-game-transfer-consistency.md` | 主钱包、游戏平台余额、转账流水、WXGame 回调和资金一致性 |
 | `promotion-and-operations-workflow.md` | 活动展示、弹窗、曝光、申请、黑名单、活动券和后台运营 |
+| `customer-service-and-live-chat.md` | 外部客服、内部实时客服、工单 fallback、访客会话和后台接待 |
 | `admin-page-contract-architecture.md` | TCG 页面 code、页面契约、通用后台服务、旧表适配和权限审计 |
 | `async-processing-and-scheduler.md` | 队列默认 sync、Laravel Scheduler、游戏记录抓取、代理返佣和运营审计 |
 

@@ -468,7 +468,103 @@ message => account disabled
 
 当前项目还存在旧接口兼容逻辑，部分路径可能没有完全统一到中间件。后续应把 token 解析、用户状态和黑名单检查进一步集中。
 
-## 7. 总结
+## 7. 示例六：实时客服访客会话绑定
+
+### 所在模块
+
+内部实时客服 API。
+
+### 解决的问题
+
+客服需要允许未登录游客先发起咨询，也需要在用户登录后把同一个会话升级为会员会话。如果完全依赖登录态，游客咨询无法开始；如果只依赖 visitor id，登录后的客服上下文又不够完整。
+
+### 为什么值得关注
+
+项目使用 visitor id 复用游客会话，并在请求携带有效会员 token 时补齐 `user_id` 和 `username`。这是一种在“匿名体验”和“会员上下文”之间折中的身份升级模式。
+
+### 体现的思想
+
+- 匿名入口和登录入口共用同一个会话模型。
+- visitor id 只用于客服会话，不扩散到资金或账户敏感动作。
+- 会话升级是补充身份，不是创建重复会话。
+
+### 最小可运行代码示例
+
+```php
+<?php
+
+function validVisitorId(string $visitorId): bool
+{
+    return (bool) preg_match('/^[A-Za-z0-9._:-]{8,100}$/', $visitorId);
+}
+
+function findOpenSession(array $sessions, ?array $user, string $visitorId): ?array
+{
+    foreach (array_reverse($sessions) as $session) {
+        if ($session['status'] === 'closed') {
+            continue;
+        }
+        if ($user && $session['user_id'] === $user['id']) {
+            return $session;
+        }
+        if ($visitorId !== '' && $session['visitor_id'] === $visitorId) {
+            return $session;
+        }
+    }
+
+    return null;
+}
+
+function attachUser(array $session, ?array $user, string $visitorId): array
+{
+    if (!$user) {
+        return $session;
+    }
+
+    if (empty($session['user_id'])) {
+        $session['user_id'] = $user['id'];
+        $session['username'] = $user['username'];
+        $session['visitor_id'] = $visitorId ?: $session['visitor_id'];
+    }
+
+    return $session;
+}
+
+$sessions = [
+    ['id' => 1, 'visitor_id' => 'visitor-1234', 'user_id' => null, 'username' => '游客-1234', 'status' => 'open'],
+];
+$user = ['id' => 99, 'username' => 'alice'];
+$visitorId = 'visitor-1234';
+
+if (!validVisitorId($visitorId)) {
+    throw new RuntimeException('invalid visitor id');
+}
+
+$session = findOpenSession($sessions, $user, $visitorId);
+$session = attachUser($session, $user, $visitorId);
+
+print_r($session);
+```
+
+预期输出要点：
+
+```text
+id => 1
+visitor_id => visitor-1234
+user_id => 99
+username => alice
+status => open
+```
+
+### 是否值得复用
+
+可以复用到低风险的匿名转登录场景，例如客服咨询、活动浏览偏好、前台临时会话等。
+
+### 局限
+
+visitor id 不是强身份凭证，不能用于钱包、游戏启动、提现、活动申请等敏感动作。实时客服还需要配合限流、消息长度限制和后台接待权限。
+
+## 8. 总结
 
 当前项目中最值得学习的代码不是某个语法技巧，而是几类工程思路：
 
@@ -477,5 +573,6 @@ message => account disabled
 - 运营限制适合用 scope 统一表达。
 - 大量后台页面适合契约化，但要配合白名单和测试。
 - 鉴权边界必须包含用户状态，而不仅是 token 存在。
+- 匿名体验可以通过受限会话升级到会员上下文，但不能替代强鉴权。
 
 这些模式都适合在后续重构中继续强化。

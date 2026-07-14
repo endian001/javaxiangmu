@@ -9,6 +9,7 @@
 - 后台运营使用 Dcat Admin guard。
 - 后台高危动作使用 OperationPermission 能力权限。
 - WXGame 回调使用玩家 token、回调签名和玩家标识。
+- 内部实时客服允许游客 visitor id 和可选会员 token 共同定位会话。
 
 该专题解释这些身份边界如何并存，以及风险在哪里。
 
@@ -20,24 +21,29 @@ flowchart TB
     Agent["代理中心"]
     AdminUser["后台运营人员"]
     Wxgame["WXGame 回调"]
+    Guest["游客实时客服"]
 
     ApiToken["users.api_token\nBearer token"]
     WebSession["Laravel web session"]
     AdminGuard["Dcat admin guard"]
     PlayerToken["WXGame player token\nHMAC 签名"]
     CallbackSign["WXGame callback signature\nAccessKey + Sign + Nonce + Timestamp"]
+    VisitorId["visitor_id\n浏览器访客标识"]
 
     ApiAuth["api_auth 中间件\n查 token + 用户状态"]
     WebAuth["Web / Auth\n会员与代理页面"]
     AdminAuth["Dcat Admin middleware\n后台登录态"]
     OpPerm["OperationPermission\n能力权限"]
     WxGuard["WXGame 校验\n签名 / 币种 / 幂等"]
+    LiveChatGuard["实时客服会话守卫\n开关 / 表结构 / visitor id / token"]
 
     Player --> ApiToken --> ApiAuth
     Agent --> WebSession --> WebAuth
     AdminUser --> AdminGuard --> AdminAuth --> OpPerm
     Wxgame --> CallbackSign --> WxGuard
     Wxgame --> PlayerToken --> WxGuard
+    Guest --> VisitorId --> LiveChatGuard
+    Player --> ApiToken --> LiveChatGuard
 ```
 
 ## 3. 玩家 API token
@@ -151,7 +157,25 @@ WXGame 有两层保护：
 - `wxgame_token_secret` 缺失时会回退到其他密钥，需明确生产策略。
 - 缓存去重依赖 Laravel Cache，生产 cache 配置需要稳定。
 
-## 8. 权限风险清单
+## 8. 内部实时客服身份边界
+
+内部实时客服不是完全登录态接口。它需要支持未登录游客先咨询，因此会接受浏览器生成的 visitor id；如果请求同时携带会员 token，则会尝试把会话绑定到会员账号。
+
+边界规则：
+
+- 系统配置必须启用内部实时客服。
+- 会话表和消息表必须存在。
+- visitor id 有长度和字符集约束。
+- 登录会员可把匿名会话升级为会员会话。
+- 后台客服回复依赖 Dcat Admin 登录态。
+
+风险：
+
+- visitor id 不是强身份凭证，不能用于资金、游戏或账户敏感操作。
+- 需要限流和内容治理，防止匿名刷消息。
+- 前台 token 与 visitor id 共同存在时，要避免把会话错误绑定给其他用户。
+
+## 9. 权限风险清单
 
 高风险点：
 
@@ -159,11 +183,12 @@ WXGame 有两层保护：
 - CORS 反射 Origin。
 - 旧接口手动解析 token。
 - 后台权限开关可关闭。
+- 内部实时客服游客入口不走统一 `api_auth`。
 - 传统资源控制器高危动作未必全部接入 OperationPermission。
 - WXGame 签名可通过配置关闭。
 - 支付回调和游戏回调必须持续审计。
 
-## 9. 改进建议
+## 10. 改进建议
 
 1. 统一所有会员 API 到 `api_auth`。
 2. 为旧接口建立鉴权例外清单。
@@ -173,8 +198,9 @@ WXGame 有两层保护：
 6. 对 CORS 加白名单，不再无条件反射 Origin。
 7. WXGame 生产强制签名校验。
 8. 输出后台权限矩阵文档。
+9. 为内部实时客服增加限流、验证码或风控策略，并记录异常 visitor id。
 
-## 10. 证据边界
+## 11. 证据边界
 
 已确认：
 
@@ -183,6 +209,7 @@ WXGame 有两层保护：
 - Dcat Admin 权限开启。
 - OperationPermission 常量存在。
 - WXGame token 和回调签名校验存在。
+- 内部实时客服支持 visitor id、可选 Bearer token 和后台接待。
 
 证据不足：
 

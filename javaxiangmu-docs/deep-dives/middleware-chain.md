@@ -109,6 +109,7 @@ API 组包含：
 - 游戏启动。
 - 充值提现。
 - 工单。
+- 内部实时客服会话、消息轮询、消息发送和关闭。
 - 代理团队 API。
 - WXGame 和支付部分回调。
 
@@ -116,6 +117,7 @@ API 组包含：
 
 - 公开 API 和登录 API 不加 `api_auth`。
 - 会员资金、游戏启动、活动申请和工单接口应加 `api_auth`。
+- 内部实时客服是特殊公开入口：游客通过 visitor id 进入，登录会员可额外携带 token 绑定会话，因此不能简单归入全部必须 `api_auth` 的会员接口。
 
 ## 6. Admin 中间件
 
@@ -133,6 +135,8 @@ API 组包含：
 5. 控制器和服务。
 
 后台 TCG 页面还强调显式路由优先，泛路由最后兜底，避免真实页面被 shell 吞掉。
+
+在线客服后台页也走 Dcat Admin 中间件。后台读取和回复实时客服会话依赖 admin session，和前台 visitor id 会话入口是两个不同安全边界。
 
 ## 7. 回调入口
 
@@ -153,8 +157,9 @@ API 组包含：
 2. 把需要登录的所有会员接口统一放入 `api_auth`。
 3. 把 CORS 改为白名单模式。
 4. 对回调入口建立独立 middleware 或 guard。
-5. 将语言头规范统一为一套内部 locale。
-6. 为 Dcat Admin 高危动作统一接 OperationPermission。
+5. 为内部实时客服标注“公开但受 visitor id 和配置开关约束”的单独类别。
+6. 将语言头规范统一为一套内部 locale。
+7. 为 Dcat Admin 高危动作统一接 OperationPermission。
 
 ## 9. 证据边界
 
@@ -164,6 +169,7 @@ API 组包含：
 - API 组和 Web 组存在。
 - api_auth 中间件存在。
 - Dcat Admin 后台中间件存在。
+- 内部实时客服前台入口位于 API 组，后台接待入口位于 Dcat Admin 路由组。
 
 证据不足：
 

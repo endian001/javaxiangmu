@@ -54,6 +54,7 @@ flowchart TB
     GameVendor["第三方游戏网关 / WXGame"]
     PayGateway["支付渠道 / 代付渠道"]
     StreamChat["Stream Chat"]
+    InternalLiveChat["内部实时客服\nlive_chat_sessions / live_chat_messages"]
 
     PublicEntry["public/index.php\nLaravel HTTP 入口"]
     Artisan["artisan\nLaravel CLI 入口"]
@@ -65,10 +66,10 @@ flowchart TB
     ApiRoutes["API 路由\nAPP / H5 JSON 接口"]
     AdminRoutes["Dcat Admin 路由\n后台资源页 + TCG 页面"]
 
-    ApiControllers["API 控制器\n认证 / 首页 / 游戏 / 支付 / 活动"]
+    ApiControllers["API 控制器\n认证 / 首页 / 游戏 / 支付 / 活动 / 实时客服"]
     MemberControllers["会员 Web 控制器\n会员中心 / 钱包 / 活动"]
     AgentControllers["代理控制器\n团队 / 报表 / 下级 / 充值"]
-    AdminControllers["后台控制器\n资源管理 / 平台运营 / 游戏管理"]
+    AdminControllers["后台控制器\n资源管理 / 平台运营 / 游戏管理 / 在线客服"]
 
     CoreServices["核心服务层\nTgService / SafeGameTransferService / PromotionService / TcgBusinessOperationService"]
     AdminServices["后台服务层\nGameManagement / PlatformOperations / PlatformSettings / PromotionChannel"]
@@ -105,6 +106,9 @@ flowchart TB
     CoreServices --> GameVendor
     CoreServices --> PayGateway
     CoreServices --> StreamChat
+    ApiControllers --> InternalLiveChat
+    AdminControllers --> InternalLiveChat
+    InternalLiveChat --> DB
 
     Artisan --> ConsoleKernel
     ConsoleKernel --> CoreServices
@@ -201,7 +205,7 @@ Dcat Admin 自身提供后台认证和权限。项目新增 `OperationPermission
 | 模块 | 主要职责 |
 |---|---|
 | API 认证控制器 | 注册、登录、PC 登录、用户资料、余额、密码、支付密码、头像、注销 |
-| API 首页 / 游戏控制器 | 首页内容、公告、活动旧接口、客服、工单、游戏列表、游戏启动、WXGame 回调、投注和转账记录 |
+| API 首页 / 游戏控制器 | 首页内容、公告、活动旧接口、客服、工单、内部实时客服、游戏列表、游戏启动、WXGame 回调、投注和转账记录 |
 | API 支付控制器 | 充值、提现、银行卡 / USDT / EBPay 资料、转账、一键回收、支付通道、红包、支付回调 |
 | API 活动控制器 | 活动分类、活动列表、详情、弹窗、申请、曝光记录 |
 | APP 控制器 | 面向旧 APP 接口的登录、支付列表、游戏、公告、活动、提现、充值记录等 |
@@ -221,7 +225,7 @@ Dcat Admin 自身提供后台认证和权限。项目新增 `OperationPermission
 后台控制器分两类：
 
 - Dcat 资源控制器：用户、充值、提现、活动、游戏、支付、代理、文章、系统配置、日志等传统 CRUD 页面。
-- 自定义 TCG 控制器：平台配置、平台运营、推广渠道、KYC、游戏管理、TCG shell、运营记录等。
+- 自定义 TCG 控制器：平台配置、平台运营、推广渠道、KYC、游戏管理、TCG shell、运营记录、积分商城、玩家运营、在线客服等。
 
 ## 7. 服务层职责
 
@@ -267,10 +271,11 @@ Dcat Admin 自身提供后台认证和权限。项目新增 `OperationPermission
 
 - 活动黑名单命中判断
 - 活动券校验和使用
+- 活动翻倍规则选择
 - 用户游戏限制命中判断
 - 玩家限额命中判断
 
-它使用 `tcg_*` 业务运营表，并在活动申请、游戏启动、WXGame 下注和余额转账中被调用。
+它使用 `tcg_*` 业务运营表，并在活动申请、游戏启动、WXGame 下注和余额转账中被调用。翻倍规则当前已提供按活动、金额区间、有效期和倍率优先级选择规则的服务能力，但证据不足以说明所有奖励发放流程都已经接入。
 
 ### 后台服务
 
@@ -303,6 +308,7 @@ flowchart LR
     ActivityApply["activity_apply\n活动申请"]
     Exposure["promotion_exposures\n活动曝光"]
     WorkOrder["work_orders + replies\n客服工单"]
+    LiveChat["live_chat_sessions + live_chat_messages\n内部实时客服会话与消息"]
     Config["system_config\n运行时配置"]
     AdminOps["admin_module_* / tcg_* / lottery_*\n运营配置与后台记录"]
     Audit["user_operate_logs / storage logs\n操作审计与命令报告"]
@@ -337,6 +343,7 @@ flowchart LR
     Frontend -->|"曝光上报"| Exposure
 
     Frontend -->|"客服入口 / 工单"| WorkOrder
+    Frontend -->|"实时客服会话 / 轮询 / 发送"| LiveChat
     Frontend -->|"聊天配置 / token"| StreamChat
     StreamChat --> Config
 
@@ -346,6 +353,7 @@ flowchart LR
     Admin --> GameList
     Admin --> Recharge
     Admin --> Withdraw
+    Admin -->|"接待 / 回复 / 关闭会话"| LiveChat
     Admin --> Audit
 
     Agent -->|"团队报表"| Recharge
@@ -459,10 +467,11 @@ sequenceDiagram
 | `apis` | 第三方游戏平台配置与启停状态 |
 | `game_lists` | 游戏目录，包含平台、游戏名、分类、排序、热门、新上架、推荐、PC / 手机状态 |
 | `activities` | 活动主体，包含传统活动字段和新增弹窗、有效期、图片、行动链接等字段 |
-| `activity_types` | 活动分类 |
+| `activity_types` | 活动分类，新增 `enname` 后可把后台中文分类和前台泰文分类分开 |
 | `activity_apply` | 用户活动申请，新增唯一约束避免同一用户重复申请同一活动 |
 | `promotion_exposures` | 活动弹窗或详情曝光记录 |
 | `work_orders` / `work_order_replies` | 客服工单和回复 |
+| `live_chat_sessions` / `live_chat_messages` | 内部实时客服会话、消息、访客标识、会员绑定、未读数和关闭状态 |
 | `system_config` | 系统级 key-value 配置中心 |
 
 ### 后台与运营表
@@ -482,6 +491,8 @@ sequenceDiagram
 | `tcg_activity_blacklists` | 活动黑名单 |
 | `tcg_activity_coupons` | 活动券 |
 | `tcg_activity_multiplier_rules` | 活动翻倍规则 |
+| `tcg_point_rules` / `tcg_point_adjustments` / `tcg_point_mall_products` / `tcg_point_exchange_orders` / `tcg_point_reward_records` | 积分规则、积分调整、商城商品、兑换申请和积分奖励记录 |
+| `tcg_operation_tags` / `tcg_otp_verification_records` / `tcg_player_level_histories` / `tcg_frontend_copy_settings` | 玩家运营标签、OTP 验证记录、等级历史和多语言前台文案设置 |
 | `tcg_player_limit_rules` | 玩家限额规则 |
 | `tcg_user_game_restrictions` | 用户游戏限制 |
 | `user_operate_logs` | 用户和后台操作审计 |
@@ -553,6 +564,10 @@ Laravel 标准配置从 `.env` 读取：
 - 【接口：活动详情与弹窗】
 - 【接口：活动申请】
 - 【接口：客服配置与工单】
+- 【接口：实时客服会话】
+- 【接口：实时客服消息轮询】
+- 【接口：实时客服消息发送】
+- 【接口：实时客服会话关闭】
 - 【接口：代理团队报表】
 - 【接口：代理团队充值】
 
@@ -569,6 +584,7 @@ Laravel 标准配置从 `.env` 读取：
 - 【接口：推广渠道资料维护】
 - 【接口：KYC 配置维护】
 - 【接口：TCG shell 像素配置与操作日志】
+- 【接口：后台实时客服会话处理】
 
 后台接口一般先做 Dcat admin 登录态校验，再做 `OperationPermission` 能力检查。
 
@@ -640,7 +656,7 @@ Console Kernel 明确调度：
 - 控制器行为测试
 - 前台源码入口和脚本引用测试
 - 活动服务和活动前后台源码测试
-- 运营、支付、佣金、客服、WXGame 管理源码测试
+- 运营、支付、佣金、客服 payload、内部实时客服、WXGame 管理源码测试
 
 测试更多是“结构约束 + 服务逻辑”的组合，较少看到完整浏览器端到端测试和真实第三方集成测试。
 
@@ -735,6 +751,7 @@ Console Kernel 明确调度：
 - MySQL 为默认数据库
 - `system_config` 为核心运行时配置中心
 - 主钱包、充值、提现、转账、游戏记录、活动、代理、工单等核心数据模型
+- 内部实时客服会话和消息数据模型
 - 安全转账服务和 TCG 运营限制服务存在，并被游戏/资金链路调用
 - TCG 风格后台页面契约、权限和审计机制存在
 
@@ -751,4 +768,3 @@ Console Kernel 明确调度：
 - 第三方账号真实配置
 - 线上队列和定时任务运行方式
 - 所有后台传统资源控制器的完整业务细节
-
