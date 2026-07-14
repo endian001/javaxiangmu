@@ -1,4 +1,4 @@
-const test = require('node:test');
+﻿const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -27,11 +27,11 @@ test('mobile register URLs are routed to the auth renderer instead of the home p
 test('public pages load the shared pixel runtime before member actions fire', () => {
   for (const file of ['public/index.html', 'public/new-h5/index.html', 'public/auth.html']) {
     const source = read(file);
-    assert.match(source, /\/assets\/pixel-tracking\.js\?v=20260714pixel2/, file);
+    assert.match(source, /\/assets\/pixel-tracking\.js\?v=20260714pixel4/, file);
   }
 
   const auth = read('public/auth.html');
-  assert.ok(auth.indexOf('/assets/pixel-tracking.js?v=20260714pixel2') < auth.indexOf('function setMode'), 'auth pixel runtime must load before auth mode URL rewriting');
+  assert.ok(auth.indexOf('/assets/pixel-tracking.js?v=20260714pixel4') < auth.indexOf('function setMode'), 'auth pixel runtime must load before auth mode URL rewriting');
   assert.match(auth, /new URLSearchParams\(location\.search \|\| ''\)/);
   assert.match(auth, /nextParams\.set\('redirect', redirect\)/);
   assert.match(auth, /window\.__th2wQueuedPixelEvents/);
@@ -43,9 +43,15 @@ test('pixel runtime supports public SDK loading and backend event recording', ()
   for (const marker of [
     'fbPixelId',
     'tiktokPixelId',
+    'kwai_pixel_id',
+    'kwaiPixelBaseCode',
     'gtagId',
     'gtmId',
+    'bigoPixelId',
+    'pixel_click_id',
+    'oks_pixel_id',
     'af_app_id',
+    'ad_app_token',
     'connect.facebook.net/en_US/fbevents.js',
     'analytics.tiktok.com/i18n/pixel/events.js',
     'googletagmanager.com/gtag/js',
@@ -61,6 +67,77 @@ test('pixel runtime supports public SDK loading and backend event recording', ()
   ]) {
     assert.ok(source.includes(marker), marker);
   }
+});
+
+test('pixel runtime captures every documented attribution and postback parameter', () => {
+  const source = read('public/assets/pixel-tracking.js');
+
+  for (const key of [
+    'affiliateCode',
+    'agentCode',
+    'invite_code',
+    'pid',
+    'linkId',
+    'fbPixelId',
+    'tiktokPixelId',
+    'kwai_pixel_id',
+    'kwaiPixelBaseCode',
+    'gtagId',
+    'gtmId',
+    'bigoPixelId',
+    'pixel_click_id',
+    'oks_pixel_id',
+    'fbclid',
+    'ttclid',
+    'gclid',
+    'cid',
+    'tfTracker',
+    'visitor_id',
+    'rtCid',
+    'obclid',
+    'kadam_id',
+    'phxCid',
+    'mgsClickId',
+    'devilsClickId',
+    'macanClickId',
+    'rbclickid',
+    'egwId',
+    'fortune',
+    'clickId',
+    'keitaroClickId',
+    'clickid',
+    'revosurge',
+    'rmClickId',
+    'af_app_id',
+    'appsflyer_id',
+    'advertising_id',
+    'oaid',
+    'idfa',
+    'idfv',
+    'ad_app_token',
+    'gps_adid',
+    'adid'
+  ]) {
+    assert.ok(source.includes(`'${key}'`), key);
+  }
+
+  for (const marker of [
+    'th2w:pixel:browser-id',
+    'th2w:pixel:session-id',
+    'event_id',
+    'referrer',
+    'screen'
+  ]) {
+    assert.ok(source.includes(marker), marker);
+  }
+});
+
+test('fresh attribution URLs replace stale stored click parameters', () => {
+  const source = read('public/assets/pixel-tracking.js');
+
+  assert.match(source, /var fresh = params && Object\.keys\(params\)\.length > 0;/);
+  assert.match(source, /var merged = fresh \? Object\.assign\(\{\}, params\) : existing;/);
+  assert.doesNotMatch(source, /\n\s*'kw'\s*(,|\])/);
 });
 
 test('frontend member actions emit pixel lifecycle events', () => {

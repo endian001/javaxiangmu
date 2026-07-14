@@ -4,33 +4,100 @@
   var storageKey = 'th2w:pixel:tracking';
   var legacyStorageKey = 'th2w_pixel_tracking';
   var firstOpenPrefix = 'th2w:pixel:first-open:';
+  var browserIdKey = 'th2w:pixel:browser-id';
+  var sessionIdKey = 'th2w:pixel:session-id';
   var initialized = false;
   var allowedKeys = [
     'affiliateCode',
     'agentCode',
+    'invite_code',
     'pid',
     'linkId',
     'fbPixelId',
     'tiktokPixelId',
+    'kwai_pixel_id',
+    'kwaiPixelBaseCode',
     'gtagId',
     'gtmId',
+    'bigoPixelId',
+    'pixel_click_id',
+    'oks_pixel_id',
+    'fbclid',
+    'ttclid',
+    'gclid',
     'af_app_id',
     'appsflyer_id',
     'advertising_id',
     'oaid',
     'idfa',
     'idfv',
+    'ad_app_token',
+    'gps_adid',
+    'adid',
     'cid',
     'visitor_id',
     'tfTracker',
     'rtCid',
-    'kwai_pixel_id',
+    'obclid',
+    'kadam_id',
+    'phxCid',
+    'mgsClickId',
+    'devilsClickId',
+    'macanClickId',
+    'rbclickid',
+    'egwId',
+    'fortune',
+    'clickId',
     'keitaroClickId',
-    'rmClickId',
-    'fbclid',
-    'ttclid',
-    'gclid'
+    'clickid',
+    'revosurge',
+    'rmClickId'
   ];
+
+  function randomId(prefix) {
+    var random = '';
+    try {
+      var bytes = new Uint8Array(16);
+      window.crypto.getRandomValues(bytes);
+      random = Array.prototype.map.call(bytes, function (value) {
+        return ('0' + value.toString(16)).slice(-2);
+      }).join('');
+    } catch (error) {
+      random = String(Math.random()).slice(2) + String(Date.now());
+    }
+    return prefix + '_' + random;
+  }
+
+  function storedId(key, prefix, storage) {
+    try {
+      var value = storage.getItem(key);
+      if (!value) {
+        value = randomId(prefix);
+        storage.setItem(key, value);
+      }
+      return value;
+    } catch (error) {
+      return randomId(prefix);
+    }
+  }
+
+  function browserId() {
+    return storedId(browserIdKey, 'br', localStorage);
+  }
+
+  function sessionId() {
+    return storedId(sessionIdKey, 'ss', sessionStorage);
+  }
+
+  function eventId(eventName, payload) {
+    var order = payload && (payload.order_no || payload.order_id || payload.recharge_id);
+    return [
+      'evt',
+      eventName || 'custom',
+      order || Date.now(),
+      Math.random().toString(16).slice(2)
+    ].join('_').replace(/[^A-Za-z0-9_.:-]/g, '_');
+  }
 
   function readQueryParams() {
     var params = new URLSearchParams(location.search || '');
@@ -62,7 +129,8 @@
 
   function storeParams(params) {
     var existing = loadStoredParams();
-    var merged = Object.assign({}, existing, params || {});
+    var fresh = params && Object.keys(params).length > 0;
+    var merged = fresh ? Object.assign({}, params) : existing;
     if (Object.keys(merged).length) {
       merged.updatedAt = new Date().toISOString();
       localStorage.setItem(storageKey, JSON.stringify(merged));
@@ -167,7 +235,10 @@
       register: 'CompleteRegistration',
       login: 'Login',
       depositSubmit: 'InitiateCheckout',
+      firstDepositArrival: 'firstDepositArrival',
+      startTrial: 'StartTrial',
       deposit: 'Purchase',
+      redeposit: 'redeposit',
       withdraw: 'withdraw'
     };
     var tiktok = {
@@ -176,7 +247,10 @@
       register: 'CompleteRegistration',
       login: 'Login',
       depositSubmit: 'InitiateCheckout',
+      firstDepositArrival: 'firstDepositArrival',
+      startTrial: 'Subscribe',
       deposit: 'CompletePayment',
+      redeposit: 'redeposit',
       withdraw: 'Withdraw'
     };
     return {
@@ -210,11 +284,20 @@
     return '';
   }
 
-  function recordBackendEvent(eventName, payload, params) {
+  function recordBackendEvent(eventName, payload, params, id) {
     var body = {
       event: eventName,
+      event_id: id,
       url: location.href,
       title: document.title,
+      referrer: document.referrer || '',
+      browser_id: browserId(),
+      session_id: sessionId(),
+      screen: {
+        width: window.screen && window.screen.width || 0,
+        height: window.screen && window.screen.height || 0,
+        pixelRatio: window.devicePixelRatio || 1
+      },
       amount: payload && (payload.amount || payload.value) || 0,
       currency: payload && payload.currency || 'THB',
       tracking: params,
@@ -240,15 +323,17 @@
     var params = currentTrackingParams();
     var names = eventMap(eventName);
     var data = vendorPayload(payload || {});
+    var id = eventId(eventName, payload || {});
+    data.event_id = id;
 
     try {
       if (params.fbPixelId && window.fbq) {
         if (names.facebook === 'PageView') {
           window.fbq('track', 'PageView');
         } else if (['CompleteRegistration', 'Lead', 'InitiateCheckout', 'Purchase'].indexOf(names.facebook) >= 0) {
-          window.fbq('track', names.facebook, data);
+          window.fbq('track', names.facebook, data, { eventID: id });
         } else {
-          window.fbq('trackCustom', names.facebook, data);
+          window.fbq('trackCustom', names.facebook, data, { eventID: id });
         }
       }
     } catch (error) {}
@@ -268,7 +353,7 @@
       }
     } catch (error) {}
 
-    return recordBackendEvent(eventName, payload || {}, params);
+    return recordBackendEvent(eventName, payload || {}, params, id);
   }
 
   function trackFirstOpen(params) {
@@ -307,6 +392,8 @@
   window.TH2WPixel = {
     init: initTracking,
     params: currentTrackingParams,
+    browserId: browserId,
+    sessionId: sessionId,
     track: trackPixelEvent
   };
   window.trackPixelEvent = trackPixelEvent;

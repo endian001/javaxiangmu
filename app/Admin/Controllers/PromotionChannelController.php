@@ -8,6 +8,7 @@ use Dcat\Admin\Layout\Content;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PromotionChannelController extends Controller
 {
@@ -55,12 +56,19 @@ class PromotionChannelController extends Controller
         $items = null;
         $pushJobs = collect();
         $events = null;
+        $postbackLogs = null;
 
         if ($module === 'events') {
             $events = $this->eventQuery($request)
                 ->orderByDesc('id')
                 ->paginate(30)
                 ->appends($request->query());
+            if (Schema::hasTable('promotion_tracking_postback_logs')) {
+                $postbackLogs = $this->postbackLogQuery($request)
+                    ->orderByDesc('id')
+                    ->paginate(30)
+                    ->appends($request->query());
+            }
         } else {
             $itemModule = $this->service->itemModule($code);
             $items = $this->itemQuery($itemModule, $request)
@@ -109,6 +117,7 @@ class PromotionChannelController extends Controller
                 'settings',
                 'pushJobs',
                 'events',
+                'postbackLogs',
                 'tab'
             ))->render());
     }
@@ -470,6 +479,31 @@ class PromotionChannelController extends Controller
         $raw = trim((string) $request->input('raw_record', ''));
         if ($raw !== '') {
             $query->where('raw_record', 'like', '%'.$raw.'%');
+        }
+
+        return $query;
+    }
+
+    private function postbackLogQuery(Request $request)
+    {
+        $query = DB::table('promotion_tracking_postback_logs');
+        foreach ([
+            'platform' => 'platform',
+            'status' => 'status',
+            'event' => 'event_name',
+            'event_id' => 'event_id',
+            'skip_reason' => 'skip_reason',
+        ] as $input => $column) {
+            $value = trim((string) $request->input($input, ''));
+            if ($value !== '') {
+                $query->where($column, 'like', '%'.$value.'%');
+            }
+        }
+        if ($request->filled('start_at')) {
+            $query->where('created_at', '>=', $request->input('start_at').' 00:00:00');
+        }
+        if ($request->filled('end_at')) {
+            $query->where('created_at', '<=', $request->input('end_at').' 23:59:59');
         }
 
         return $query;

@@ -1,6 +1,7 @@
 @php
     $items = $items ?? null;
     $events = $events ?? null;
+    $postbackLogs = $postbackLogs ?? null;
     $settings = $settings ?? [];
     $itemRows = $items ? $items->getCollection() : collect();
 @endphp
@@ -116,10 +117,56 @@
         <div class="pc-tabs">
             <a class="{{ $tab === 'pixel-events' ? 'active' : '' }}" href="{{ request()->url() }}?tab=pixel-events">像素事件</a>
             <a class="{{ $tab === 'adjust-s2s' ? 'active' : '' }}" href="{{ request()->url() }}?tab=adjust-s2s">调整S2S事件上报</a>
+            <a class="{{ $tab === 'postback-logs' ? 'active' : '' }}" href="{{ request()->url() }}?tab=postback-logs">回传日志</a>
         </div>
     @endif
 
-    @if($module === 'events')
+    @if($module === 'events' && $tab === 'postback-logs')
+        <div class="pc-panel">
+            <div class="pc-panel-body">
+                <form method="get" class="pc-toolbar">
+                    <input type="hidden" name="tab" value="postback-logs">
+                    <div class="pc-field"><label>平台</label><input name="platform" class="form-control" value="{{ request('platform') }}"></div>
+                    <div class="pc-field"><label>状态</label><input name="status" class="form-control" value="{{ request('status') }}" placeholder="pending / sent / failed / skipped"></div>
+                    <div class="pc-field"><label>事件</label><input name="event" class="form-control" value="{{ request('event') }}"></div>
+                    <div class="pc-field"><label>事件ID</label><input name="event_id" class="form-control" value="{{ request('event_id') }}"></div>
+                    <div class="pc-field"><label>跳过原因</label><input name="skip_reason" class="form-control" value="{{ request('skip_reason') }}"></div>
+                    <div class="pc-field"><label>开始</label><input type="date" name="start_at" class="form-control" value="{{ request('start_at') }}"></div>
+                    <div class="pc-field"><label>结束</label><input type="date" name="end_at" class="form-control" value="{{ request('end_at') }}"></div>
+                    <button class="btn btn-primary"><i class="fa fa-search"></i> 搜索</button>
+                    <a class="btn btn-default" href="{{ request()->url() }}?tab=postback-logs">重置</a>
+                </form>
+            </div>
+            <div class="table-responsive"><table class="table table-hover pc-table">
+                <thead><tr><th>时间</th><th>平台</th><th>状态</th><th>跳过原因</th><th>事件</th><th>平台事件</th><th>事件ID</th><th>请求地址</th><th>响应</th><th>重试</th></tr></thead>
+                <tbody>
+                @if($postbackLogs)
+                    @forelse($postbackLogs as $log)
+                        <tr>
+                            <td>{{ $log->created_at }}</td>
+                            <td>{{ $log->platform }}</td>
+                            <td><span class="pc-badge {{ $log->status === 'sent' ? 'pc-badge-ok' : ($log->status === 'failed' ? 'pc-badge-danger' : ($log->status === 'skipped' ? 'pc-badge-off' : 'pc-badge-warn')) }}">{{ $log->status }}</span></td>
+                            <td>{{ $log->skip_reason ?: '-' }}</td>
+                            <td>{{ $log->event_name }}</td>
+                            <td>{{ $log->platform_event_name ?: '-' }}</td>
+                            <td>{{ $log->event_id ?: '-' }}</td>
+                            <td style="max-width:360px;word-break:break-all;">{{ $log->request_url ?: '-' }}</td>
+                            <td>{{ $log->response_status ?: '-' }}</td>
+                            <td>{{ $log->attempts }}{{ $log->next_retry_at ? ' / '.$log->next_retry_at : '' }}</td>
+                        </tr>
+                    @empty
+                        <tr><td colspan="10" class="pc-empty">暂无回传日志</td></tr>
+                    @endforelse
+                @else
+                    <tr><td colspan="10" class="pc-empty">回传日志表尚未迁移</td></tr>
+                @endif
+                </tbody>
+            </table></div>
+            @if($postbackLogs)
+                <div class="pc-panel-body">{{ $postbackLogs->links() }}</div>
+            @endif
+        </div>
+    @elseif($module === 'events')
         <div class="pc-panel">
             <div class="pc-panel-body">
                 <form method="get" class="pc-toolbar">
