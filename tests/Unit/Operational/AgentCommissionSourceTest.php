@@ -23,4 +23,18 @@ class AgentCommissionSourceTest extends TestCase
         $this->assertStringContainsString('everyMinute()', $kernel);
         $this->assertStringContainsString('withoutOverlapping()', $kernel);
     }
+
+    public function test_agent_invite_info_api_defines_qrcode_path_and_bearer_token()
+    {
+        $controllerPath = dirname(__DIR__, 3).'/app/Http/Controllers/Api/IndexController.php';
+        $this->assertFileExists($controllerPath);
+
+        $controller = file_get_contents($controllerPath);
+
+        $this->assertStringContainsString("header('Authorization'", $controller);
+        $this->assertStringContainsString("preg_replace('/^Bearer\\s+/i'", $controller);
+        $this->assertStringContainsString('$qrcodePath =', $controller);
+        $this->assertStringContainsString("'qrcode' => \$this->appPublicUrl() . \$qrcodePath", $controller);
+        $this->assertStringNotContainsString('瀵?        $qrcodePath', $controller);
+    }
 }

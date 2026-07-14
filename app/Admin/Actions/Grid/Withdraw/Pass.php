@@ -3,6 +3,7 @@
 namespace App\Admin\Actions\Grid\Withdraw;
 
 use App\Admin\Support\OperationPermission;
+use App\Admin\Support\OpsChangeAudit;
 use App\Models\UserOperateLog;
 use App\Models\Withdraw;
 use App\User;
@@ -36,6 +37,7 @@ class Pass extends RowAction
         $ua = $request->userAgent() ?: '';
 
         try {
+            OperationPermission::assert(OperationPermission::FINANCE_WITHDRAW_PASS);
             $result = DB::transaction(function () use ($id, $ip, $ua) {
                 $model = Withdraw::where('id', $id)->lockForUpdate()->first();
                 if (!$model) {
@@ -50,8 +52,10 @@ class Pass extends RowAction
                     return ['error' => 'User not found'];
                 }
 
+                $beforeBalance = $user->balance;
                 $model->state = 2;
                 $model->save();
+                $afterBalance = $user->balance;
 
                 UserOperateLog::insertLog(
                     $user->id,
@@ -67,7 +71,27 @@ class Pass extends RowAction
                         'order_no' => $model->order_no,
                         'state_from' => 1,
                         'state_to' => 2,
+                        'before_balance' => $beforeBalance,
+                        'after_balance' => $afterBalance,
                     ])
+                );
+
+                OpsChangeAudit::writeAdminAudit(
+                    'finance.withdraw.pass',
+                    'withdraw',
+                    'Approve withdraw '.$model->order_no,
+                    [
+                        'withdraw_id' => $model->id,
+                        'order_no' => $model->order_no,
+                        'user_id' => $user->id,
+                        'username' => $user->username,
+                        'amount' => $model->amount,
+                        'real_money' => $model->real_money,
+                        'before_balance' => $beforeBalance,
+                        'after_balance' => $afterBalance,
+                        'state_from' => 1,
+                        'state_to' => 2,
+                    ]
                 );
 
                 return ['ok' => true];

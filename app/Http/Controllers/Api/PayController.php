@@ -24,6 +24,7 @@ use App\Models\RedEnvelopes;
 use Illuminate\Support\Facades\Log;
 use App\Models\User_Api;
 use App\Services\PayService;
+use App\Services\PromotionPixelEventService;
 use App\Services\Zgpay;
 use Illuminate\Support\Facades\DB;
 class PayController extends Controller
@@ -1634,6 +1635,7 @@ class PayController extends Controller
 
             $recharge->state = 2;
             $recharge->save();
+            (new PromotionPixelEventService())->recordDepositArrival($recharge, ['source' => 'jc_notify']);
 
             return 'success';
         });
@@ -1683,6 +1685,7 @@ class PayController extends Controller
 
             $recharge->state = 2;
             $recharge->save();
+            (new PromotionPixelEventService())->recordDepositArrival($recharge, ['source' => 'cgpay_notify']);
 
             return 'success';
         });

@@ -27,14 +27,23 @@ class HomeOperationsFrontendSourceTest extends TestCase
                 $file.' should expose a home banner hook'
             );
             $this->assertStringContainsString(
-                '/assets/home-operations.css?v=20260714livechat1',
+                '/assets/home-operations.css?v=20260714agent1',
                 $source
             );
             $this->assertStringContainsString(
-                '/assets/home-operations.js?v=20260714livechat1',
+                '/assets/home-operations.js?v=20260714agent1',
                 $source
             );
         }
+    }
+
+    public function test_member_agent_path_is_treated_as_member_tool_page()
+    {
+        $desktop = file_get_contents($this->root().'/public/index.html');
+        $script = file_get_contents($this->root().'/public/assets/home-operations.js');
+
+        $this->assertStringContainsString("p==='/member/agent'", $desktop);
+        $this->assertStringContainsString("path === '/member/agent'", $script);
     }
 
     public function test_component_uses_real_banner_and_customer_service_apis()
@@ -144,6 +153,35 @@ class HomeOperationsFrontendSourceTest extends TestCase
         $this->assertStringContainsString('return root || document.body;', $script);
         $this->assertStringNotContainsString('thaiRunPattern', $script);
         $this->assertStringNotContainsString('NodeFilter.SHOW_TEXT', $script);
+    }
+
+    public function test_member_center_exposes_agent_workspace_for_agent_accounts()
+    {
+        $script = file_get_contents($this->root().'/public/assets/home-operations.js');
+
+        foreach ([
+            '/member/agent',
+            'function isAgentUser(',
+            'function renderAgentWorkspace(',
+            '/api/team/performance',
+            '/api/team/childlist',
+            '/api/team/commissionList',
+            '/api/getAgentInfo',
+        ] as $marker) {
+            $this->assertStringContainsString($marker, $script);
+        }
+    }
+
+    public function test_auth_page_persists_member_api_token_for_frontend_features()
+    {
+        $source = file_get_contents($this->root().'/public/auth.html');
+        $controller = file_get_contents($this->root().'/app/Http/Controllers/Member/AuthController.php');
+
+        $this->assertStringContainsString('function storeAuthToken(', $source);
+        $this->assertStringContainsString("localStorage.setItem('api_token'", $source);
+        $this->assertStringContainsString("localStorage.setItem('th2w:api_token'", $source);
+        $this->assertStringContainsString("'api_token' =>", $controller);
+        $this->assertStringContainsString('Str::random(60)', $controller);
     }
 
     public function test_desktop_and_mobile_top_bar_match_reference_controls()

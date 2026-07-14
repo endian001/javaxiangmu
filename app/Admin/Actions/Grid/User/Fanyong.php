@@ -4,6 +4,7 @@ namespace App\Admin\Actions\Grid\User;
 
 
 use App\Admin\Support\OperationPermission;
+use App\Admin\Support\OpsChangeAudit;
 use App\Models\SystemConfig;
 use App\Models\Users;
 use App\Models\TransferLog;
@@ -97,6 +98,21 @@ class Fanyong extends RowAction
                         '',
                         '管理员结算代理【' . $user->username . '】返佣，金额'.$money.'，调整前金额'.$beforeBalance.'，调整后金额'.$user->balance,
                         $auditInfo === false ? '' : $auditInfo
+                    );
+
+                    OpsChangeAudit::writeAdminAudit(
+                        'agent.commission.settle',
+                        'agent_commission',
+                        'Settle commission for '.$user->username,
+                        [
+                            'agent_id' => $user->id,
+                            'username' => $user->username,
+                            'amount' => $money,
+                            'before_balance' => $beforeBalance,
+                            'after_balance' => (float) $user->balance,
+                            'log_ids' => $logs->pluck('id')->all(),
+                        ],
+                        $request
                     );
 
                     return $money;

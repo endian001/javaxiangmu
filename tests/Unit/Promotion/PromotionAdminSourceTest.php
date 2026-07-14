@@ -87,4 +87,46 @@ class PromotionAdminSourceTest extends TestCase
             $this->assertStringContainsString('enname', $source);
         }
     }
+
+    public function test_activity_approval_issues_real_coupon_reward_when_amount_exists()
+    {
+        $migration = file_get_contents($this->root().'/database/migrations/2026_07_14_000001_extend_activity_apply_reward_fields.php');
+        $baseController = file_get_contents($this->root().'/app/Http/Controllers/Controller.php');
+        $passAction = file_get_contents($this->root().'/app/Admin/Actions/Grid/Activity/Pass.php');
+
+        foreach ([
+            'coupon_code',
+            'reward_amount',
+            'reward_source',
+            'issued_transfer_log_id',
+            'issued_at',
+        ] as $field) {
+            $this->assertStringContainsString($field, $migration);
+        }
+
+        foreach ([
+            'coupon_code',
+            'reward_amount',
+            'reward_source',
+        ] as $field) {
+            $this->assertStringContainsString($field, $baseController);
+        }
+
+        $this->assertStringContainsString('function activityApplyPayload(', $baseController);
+        $this->assertStringContainsString("Schema::hasColumn('activity_apply', 'reward_amount')", $baseController);
+
+        foreach ([
+            'use App\Models\TransferLog;',
+            'use App\Models\Users;',
+            'activityRewardAmount',
+            'Users::where',
+            'lockForUpdate()',
+            'TransferLog::create([',
+            "'transfer_type' => 5",
+            'issued_transfer_log_id',
+            'makeActivityRewardOrderNo',
+        ] as $needle) {
+            $this->assertStringContainsString($needle, $passAction);
+        }
+    }
 }

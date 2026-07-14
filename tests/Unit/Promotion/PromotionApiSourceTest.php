@@ -175,6 +175,29 @@ class PromotionApiSourceTest extends TestCase
         }
     }
 
+    public function test_activity_apply_endpoints_store_reward_payload_for_admin_issuance()
+    {
+        $controller = file_get_contents($this->root().'/app/Http/Controllers/Controller.php');
+        $this->assertStringContainsString('function activityApplyPayload(', $controller);
+        $this->assertStringContainsString('activityCouponAmount', $controller);
+
+        $targets = [
+            [$this->root().'/app/Http/Controllers/Api/PromotionController.php', 'public function apply'],
+            [$this->root().'/app/Http/Controllers/Api/IndexController.php', 'public function doactivity'],
+            [$this->root().'/app/Http/Controllers/Api/AppController.php', 'public function activitiesgo'],
+            [$this->root().'/app/Http/Controllers/Wap/IndexController.php', 'public function doactivity'],
+            [$this->root().'/app/Http/Controllers/Member/MemberController.php', 'public function doactivity'],
+        ];
+
+        foreach ($targets as [$path, $methodNeedle]) {
+            $source = file_get_contents($path);
+            $method = substr($source, strpos($source, $methodNeedle));
+
+            $this->assertStringContainsString('activityApplyPayload', $method, $path);
+            $this->assertStringContainsString('ActivityApply::create', $method, $path);
+        }
+    }
+
     public function test_tcg_business_operation_service_is_used_by_frontend_runtime_paths()
     {
         $servicePath = $this->root().'/app/Services/TcgBusinessOperationService.php';

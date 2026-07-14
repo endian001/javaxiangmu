@@ -215,11 +215,11 @@ class MemberController extends Controller
         $tg = new TgService;
         $user = Auth::user();
         if ($game_type) {
-            $game = GameList::where('platform_name',$plat_name);
+            $game = GameList::where('platform_name',$plat_name)->where('is_top',1)->where('site_state',1);
             if (!is_numeric($game_type)) $game = $game->where('game_code',$game_type);
             $game = $game->first();
             // dd($game);
-            if ($game && $game->site_state != 1) {
+            if (!$game) {
                 $ret['message'] = "游戏暂未开放";
                 return view($this->path . '.member.noentergame', compact('ret'));
             }
@@ -834,13 +834,7 @@ class MemberController extends Controller
 
         try {
             $created = DB::transaction(function () use ($activityId, $userinfo, $couponCheck) {
-                $created = ActivityApply::create([
-                    'activity_id' => $activityId,
-                    'user_id' => $userinfo->id,
-                    'state' => 1,
-                    'created_at' => date('Y-m-d H:i:s'),
-                    'updated_at' => date('Y-m-d H:i:s'),
-                ]);
+                $created = ActivityApply::create($this->activityApplyPayload($activityId, $userinfo, $couponCheck));
 
                 if (!$this->markActivityCouponUsed($couponCheck['coupon'], $userinfo)) {
                     throw new \RuntimeException('activity coupon consume failed');
@@ -926,43 +920,53 @@ class MemberController extends Controller
                 
                 $currentVip = (object) $currentVip[0];
                 
-                // 检查是否已经领取过升级奖励
-                $hasClaimed = DB::select('select id from transfer_log where user_id = ? and transfer_type = ? and remark = ? limit 1', [$user->id, 7, '升级奖励']);
-                
-                if (!empty($hasClaimed)) {
-                    return $this->returnMsg(500, '', '您已经领取过升级奖励');
-                }
-                
                 // 检查是否达到当前 VIP 等级的要求
                 if ($user->paysum < $currentVip->recharge || $user->totalgame < $currentVip->flow) {
                     return $this->returnMsg(500, '', '未达到当前等级的升级条件');
                 }
                 
-                // 开始事务
-                DB::beginTransaction();
-                
-                try {
-                    // 发放奖励
+                $duplicateMessage = null;
+                DB::transaction(function () use ($user, $currentVip, &$duplicateMessage) {
+                    $user = Users::where('id', $user->id)->lockForUpdate()->first();
+                    if (!$user) {
+                        throw new \RuntimeException('user not found');
+                    }
+
+                    $hasClaimed = TransferLog::where('user_id', $user->id)
+                        ->where('transfer_type', 7)
+                        ->exists();
+
+                    if ($hasClaimed) {
+                        $duplicateMessage = '您已经领取过升级奖励';
+                        return;
+                    }
+
                     $beforeBalance = $user->balance;
-                    $newBalance = $beforeBalance + $currentVip->upgrade_bonus;
-                    DB::update('update users set balance = ? where id = ?', [$newBalance, $user->id]);
-                    
-                    // 记录转账日志
-                    $orderNo = date('Ymd') . '_' . $user->id . '_' . time();
-                    DB::insert('insert into transfer_log (order_no, api_type, user_id, transfer_type, money, cash_fee, real_money, before_money, after_money, state, remark) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
-                        $orderNo, 'web', $user->id, 7, $currentVip->upgrade_bonus, 0, $currentVip->upgrade_bonus, $beforeBalance, $newBalance, 1, '升级奖励'
+                    $bonus = $currentVip->upgrade_bonus;
+                    $user->balance = $beforeBalance + $bonus;
+                    $user->save();
+
+                    TransferLog::create([
+                        'order_no' => $this->makeVipRewardOrderNo($user->id, 7),
+                        'api_type' => 'web',
+                        'user_id' => $user->id,
+                        'transfer_type' => 7,
+                        'money' => $bonus,
+                        'cash_fee' => 0,
+                        'real_money' => $bonus,
+                        'before_money' => $beforeBalance,
+                        'after_money' => $user->balance,
+                        'state' => 1,
+                        'remark' => '升级奖励',
                     ]);
-                    
-                    // 提交事务
-                    DB::commit();
-                    
-                    return $this->returnMsg(200, '', '成功领取升级奖励');
-                } catch (Exception $e) {
-                    // 回滚事务
-                    DB::rollBack();
-                    throw $e;
+                });
+
+                if ($duplicateMessage) {
+                    return $this->returnMsg(500, '', $duplicateMessage);
                 }
-            } catch (Exception $e) {
+
+                return $this->returnMsg(200, '', '成功领取升级奖励');
+            } catch (\Throwable $e) {
                 return $this->returnMsg(500, '', '领取失败：' . $e->getMessage());
             }
         }
@@ -996,6 +1000,11 @@ class MemberController extends Controller
                 // 转换为对象
                 $user = (object) $user[0];
                 
+                $user = Users::where('id', $user->id)->first();
+                if (!$user) {
+                    return $this->returnMsg(500, '', 'user not found');
+                }
+
                 $userVip = UserVip::where('id', $user->vip)->first();
                 
                 if (!$userVip || $userVip->weekly_salary <= 0) {
@@ -1011,40 +1020,53 @@ class MemberController extends Controller
                 $weekStart = date('Y-m-d', strtotime('this week'));
                 $weekEnd = date('Y-m-d', strtotime('this week + 6 days'));
                 
-                $hasClaimed = TransferLog::where('user_id', $user->id)
-                    ->where('transfer_type', 8) // 8 表示周奖励
-                    ->where('remark', '周奖励')
-                    ->whereBetween('created_at', [$weekStart . ' 00:00:00', $weekEnd . ' 23:59:59'])
-                    ->exists();
-                
-                if ($hasClaimed) {
-                    return $this->returnMsg(500, '', '您已经领取过本周奖励');
-                }
-                
                 // 检查是否达到周奖励条件
                 // 这里可以根据实际需求添加条件，例如周流水、周充值等
-                
-                // 发放奖励
-                $user->balance += $userVip->weekly_salary;
-                $user->save();
-                
-                // 记录转账日志
-                TransferLog::create([
-                    'order_no' => date('Ymd') . '_' . $user->id . '_' . time(),
-                    'api_type' => 'web',
-                    'user_id' => $user->id,
-                    'transfer_type' => 8,
-                    'money' => $userVip->weekly_salary,
-                    'cash_fee' => 0,
-                    'real_money' => $userVip->weekly_salary,
-                    'before_money' => $user->balance - $userVip->weekly_salary,
-                    'after_money' => $user->balance,
-                    'state' => 1,
-                    'remark' => '周奖励'
-                ]);
+
+                $duplicateMessage = null;
+                DB::transaction(function () use ($user, $userVip, $weekStart, $weekEnd, &$duplicateMessage) {
+                    $user = Users::where('id', $user->id)->lockForUpdate()->first();
+                    if (!$user) {
+                        throw new \RuntimeException('user not found');
+                    }
+
+                    $hasClaimed = TransferLog::where('user_id', $user->id)
+                        ->where('transfer_type', 8)
+                        ->where('remark', '周奖励')
+                        ->whereBetween('created_at', [$weekStart . ' 00:00:00', $weekEnd . ' 23:59:59'])
+                        ->exists();
+
+                    if ($hasClaimed) {
+                        $duplicateMessage = '您已经领取过本周奖励';
+                        return;
+                    }
+
+                    $beforeBalance = $user->balance;
+                    $bonus = $userVip->weekly_salary;
+                    $user->balance = $beforeBalance + $bonus;
+                    $user->save();
+
+                    TransferLog::create([
+                        'order_no' => $this->makeVipRewardOrderNo($user->id, 8),
+                        'api_type' => 'web',
+                        'user_id' => $user->id,
+                        'transfer_type' => 8,
+                        'money' => $bonus,
+                        'cash_fee' => 0,
+                        'real_money' => $bonus,
+                        'before_money' => $beforeBalance,
+                        'after_money' => $user->balance,
+                        'state' => 1,
+                        'remark' => '周奖励',
+                    ]);
+                });
+
+                if ($duplicateMessage) {
+                    return $this->returnMsg(500, '', $duplicateMessage);
+                }
                 
                 return $this->returnMsg(200, '', '成功领取周奖励');
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 return $this->returnMsg(500, '', '领取失败');
             }
         }
@@ -1078,6 +1100,11 @@ class MemberController extends Controller
                 // 转换为对象
                 $user = (object) $user[0];
                 
+                $user = Users::where('id', $user->id)->first();
+                if (!$user) {
+                    return $this->returnMsg(500, '', 'user not found');
+                }
+
                 $userVip = UserVip::where('id', $user->vip)->first();
                 
                 if (!$userVip || $userVip->monthly_salary <= 0) {
@@ -1093,40 +1120,53 @@ class MemberController extends Controller
                 $monthStart = date('Y-m-01');
                 $monthEnd = date('Y-m-t');
                 
-                $hasClaimed = TransferLog::where('user_id', $user->id)
-                    ->where('transfer_type', 9) // 9 表示月奖励
-                    ->where('remark', '月奖励')
-                    ->whereBetween('created_at', [$monthStart . ' 00:00:00', $monthEnd . ' 23:59:59'])
-                    ->exists();
-                
-                if ($hasClaimed) {
-                    return $this->returnMsg(500, '', '您已经领取过本月奖励');
-                }
-                
                 // 检查是否达到月奖励条件
                 // 这里可以根据实际需求添加条件，例如月流水、月充值等
-                
-                // 发放奖励
-                $user->balance += $userVip->monthly_salary;
-                $user->save();
-                
-                // 记录转账日志
-                TransferLog::create([
-                    'order_no' => date('Ymd') . '_' . $user->id . '_' . time(),
-                    'api_type' => 'web',
-                    'user_id' => $user->id,
-                    'transfer_type' => 9,
-                    'money' => $userVip->monthly_salary,
-                    'cash_fee' => 0,
-                    'real_money' => $userVip->monthly_salary,
-                    'before_money' => $user->balance - $userVip->monthly_salary,
-                    'after_money' => $user->balance,
-                    'state' => 1,
-                    'remark' => '月奖励'
-                ]);
+
+                $duplicateMessage = null;
+                DB::transaction(function () use ($user, $userVip, $monthStart, $monthEnd, &$duplicateMessage) {
+                    $user = Users::where('id', $user->id)->lockForUpdate()->first();
+                    if (!$user) {
+                        throw new \RuntimeException('user not found');
+                    }
+
+                    $hasClaimed = TransferLog::where('user_id', $user->id)
+                        ->where('transfer_type', 9)
+                        ->where('remark', '月奖励')
+                        ->whereBetween('created_at', [$monthStart . ' 00:00:00', $monthEnd . ' 23:59:59'])
+                        ->exists();
+
+                    if ($hasClaimed) {
+                        $duplicateMessage = '您已经领取过本月奖励';
+                        return;
+                    }
+
+                    $beforeBalance = $user->balance;
+                    $bonus = $userVip->monthly_salary;
+                    $user->balance = $beforeBalance + $bonus;
+                    $user->save();
+
+                    TransferLog::create([
+                        'order_no' => $this->makeVipRewardOrderNo($user->id, 9),
+                        'api_type' => 'web',
+                        'user_id' => $user->id,
+                        'transfer_type' => 9,
+                        'money' => $bonus,
+                        'cash_fee' => 0,
+                        'real_money' => $bonus,
+                        'before_money' => $beforeBalance,
+                        'after_money' => $user->balance,
+                        'state' => 1,
+                        'remark' => '月奖励',
+                    ]);
+                });
+
+                if ($duplicateMessage) {
+                    return $this->returnMsg(500, '', $duplicateMessage);
+                }
                 
                 return $this->returnMsg(200, '', '成功领取月奖励');
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 return $this->returnMsg(500, '', '领取失败');
             }
         }
@@ -1782,6 +1822,11 @@ class MemberController extends Controller
                 return $this->returnMsg(500, '', '获取失败：' . $e->getMessage());
             }
         }
+    }
+
+    protected function makeVipRewardOrderNo($userId, $transferType)
+    {
+        return date('YmdHis').'_vip_'.$transferType.'_'.$userId.'_'.mt_rand(100000, 999999);
     }
 
 }

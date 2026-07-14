@@ -19,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use App\Services\TgService;
 use App\Models\Template;
 use App\Services\Zgpay;
+use App\Services\PromotionPixelEventService;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Hash;
 class PayController extends Controller
@@ -229,13 +230,13 @@ class PayController extends Controller
      * @param Request $request
      * @return void
      */
-    protected function settleLegacyRechargeNotify($orderNo, $outTradeNo, $callbackAmount)
+    protected function settleLegacyRechargeNotify($orderNo, $outTradeNo, $callbackAmount, $source = 'legacy_notify')
     {
         $orderNo = (string) $orderNo;
         $outTradeNo = (string) $outTradeNo;
         $callbackAmount = (float) $callbackAmount;
 
-        return DB::transaction(function () use ($orderNo, $outTradeNo, $callbackAmount) {
+        $result = DB::transaction(function () use ($orderNo, $outTradeNo, $callbackAmount) {
             $item = null;
             if ($orderNo !== '') {
                 $item = Recharge::where('order_no', $orderNo)->lockForUpdate()->first();
@@ -247,7 +248,7 @@ class PayController extends Controller
                 return 'order error';
             }
             if ((int) $item->state === 2) {
-                return 'success';
+                return ['status' => 'success', 'recharge_id' => $item->id];
             }
             if ((int) $item->state !== 1) {
                 return 'order error';
@@ -271,8 +272,21 @@ class PayController extends Controller
             $user->paysum += $item->amount;
             $user->save();
 
-            return 'success';
+            return ['status' => 'success', 'recharge_id' => $item->id];
         });
+
+        if (is_array($result) && ($result['status'] ?? '') === 'success') {
+            try {
+                $recharge = Recharge::where('id', $result['recharge_id'] ?? 0)->first();
+                (new PromotionPixelEventService())->recordDepositArrival($recharge, ['source' => $source]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('legacy recharge pixel record failed', ['message' => $e->getMessage()]);
+            }
+
+            return 'success';
+        }
+
+        return $result;
     }
 
     protected function settleLegacyWithdrawNotify($orderNo)
@@ -338,7 +352,7 @@ class PayController extends Controller
             echo "hash error";
         } else {
             $amount = $data['amount'] ?? ($data['price'] ?? 0);
-            echo $this->settleLegacyRechargeNotify($data['order_no'] ?? '', $data['out_trade_no'] ?? '', $amount);
+            echo $this->settleLegacyRechargeNotify($data['order_no'] ?? '', $data['out_trade_no'] ?? '', $amount, 'legacy_notify');
         }
     }
 
@@ -377,7 +391,7 @@ class PayController extends Controller
         {
             echo "sign error";
         } else {
-            echo $this->settleLegacyRechargeNotify($data['order_no'] ?? '', $data['orderNo'] ?? ($data['out_trade_no'] ?? ''), $data['amount'] ?? 0);
+            echo $this->settleLegacyRechargeNotify($data['order_no'] ?? '', $data['orderNo'] ?? ($data['out_trade_no'] ?? ''), $data['amount'] ?? 0, 'legacy_fourway_notify');
         }
 
     }

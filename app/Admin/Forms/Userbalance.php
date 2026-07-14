@@ -3,6 +3,7 @@
 namespace App\Admin\Forms;
 
 use App\Admin\Support\OperationPermission;
+use App\Admin\Support\OpsChangeAudit;
 use App\Models\TransferLog;
 use Dcat\Admin\Traits\LazyWidget;
 use Dcat\Admin\Contracts\LazyRenderable;
@@ -97,6 +98,22 @@ class Userbalance extends Form implements LazyRenderable
                     '',
                     '管理员调整【' . $user->username . '】账户余额，调整金额数'.$balance.'，调整前金额'.$beforeBalance.'，调整后金额'.$afterBalance,
                     $auditInfo === false ? '' : $auditInfo
+                );
+
+                OpsChangeAudit::writeAdminAudit(
+                    'member.balance.adjust',
+                    'member_balance',
+                    'Adjust member balance for '.$user->username,
+                    [
+                        'user_id' => $user->id,
+                        'username' => $user->username,
+                        'source' => $source,
+                        'amount' => $balance,
+                        'before_balance' => $beforeBalance,
+                        'after_balance' => $afterBalance,
+                        'transfer_type' => ($balance < 0) ? 4 : 3,
+                    ],
+                    $request
                 );
             });
         } catch (\Throwable $e) {

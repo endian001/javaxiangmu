@@ -3,6 +3,7 @@
 namespace App\Admin\Actions\Grid\Withdraw;
 
 use App\Admin\Support\OperationPermission;
+use App\Admin\Support\OpsChangeAudit;
 use App\Models\UserOperateLog;
 use App\Models\Withdraw;
 use App\User;
@@ -36,6 +37,7 @@ class Refuse extends RowAction
         $ua = $request->userAgent() ?: '';
 
         try {
+            OperationPermission::assert(OperationPermission::FINANCE_WITHDRAW_REFUSE);
             $result = DB::transaction(function () use ($id, $ip, $ua) {
                 $model = Withdraw::where('id', $id)->lockForUpdate()->first();
                 if (!$model) {
@@ -56,6 +58,7 @@ class Refuse extends RowAction
 
                 $user->balance += $model->amount;
                 $user->save();
+                $afterBalance = $user->balance;
 
                 UserOperateLog::insertLog(
                     $user->id,
@@ -71,7 +74,27 @@ class Refuse extends RowAction
                         'order_no' => $model->order_no,
                         'state_from' => 1,
                         'state_to' => 3,
+                        'before_balance' => $beforeBalance,
+                        'after_balance' => $afterBalance,
                     ])
+                );
+
+                OpsChangeAudit::writeAdminAudit(
+                    'finance.withdraw.refuse',
+                    'withdraw',
+                    'Refuse withdraw '.$model->order_no,
+                    [
+                        'withdraw_id' => $model->id,
+                        'order_no' => $model->order_no,
+                        'user_id' => $user->id,
+                        'username' => $user->username,
+                        'amount' => $model->amount,
+                        'real_money' => $model->real_money,
+                        'before_balance' => $beforeBalance,
+                        'after_balance' => $afterBalance,
+                        'state_from' => 1,
+                        'state_to' => 3,
+                    ]
                 );
 
                 return ['ok' => true];

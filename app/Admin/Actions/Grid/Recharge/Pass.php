@@ -8,6 +8,7 @@ use App\Models\SystemConfig;
 use App\Models\UserOperateLog;
 use App\Models\Users;
 use App\Models\UserVip;
+use App\Services\PromotionPixelEventService;
 use App\User;
 use Dcat\Admin\Actions\Response;
 use Dcat\Admin\Admin;
@@ -60,6 +61,7 @@ class Pass extends RowAction
 
                 $model->state = 2;
                 $model->save();
+                (new PromotionPixelEventService())->recordDepositArrival($model, ['source' => 'admin_recharge_pass']);
 
                 $this->sendmoney($user, $model->amount);
                 $this->upuserlevel($model->user_id);

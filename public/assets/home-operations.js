@@ -114,14 +114,18 @@
   function isAuthPath() {
     var path = location.pathname.replace(/\/+$/, '') || '/';
     return path === '/login' ||
-      path === '/register';
+      path === '/register' ||
+      path === '/m/login' ||
+      path === '/m/register' ||
+      path === '/new-h5/login' ||
+      path === '/new-h5/register';
   }
 
   function normalizeLegacyAuthHash() {
     var path = location.pathname.replace(/\/+$/, '') || '/';
     var hash = location.hash || '';
     var hashPath = hash.replace(/^#/, '').split('?')[0].replace(/\/+$/, '') || '';
-    if ((path === '/' || path === '/index.html') && (hashPath === '/login' || hashPath === '/register')) {
+    if ((path === '/' || path === '/index.html') && (hashPath === '/login' || hashPath === '/register' || hashPath === '/m/login' || hashPath === '/m/register' || hashPath === '/new-h5/login' || hashPath === '/new-h5/register')) {
       var hashQuery = hash.indexOf('?') >= 0 ? hash.slice(hash.indexOf('?')) : '';
       location.replace(hashPath + hashQuery);
       return true;
@@ -163,6 +167,7 @@
       path === '/member/wallet' ||
       path === '/member/recharge' ||
       path === '/member/withdraw' ||
+      path === '/member/agent' ||
       path === '/wallet' ||
       path === '/recharge' ||
       path === '/withdraw';
@@ -220,6 +225,12 @@
 
   function apiPost(path, body, token) {
     return postJson(path, body || {}, authHeaders(token || currentAuthToken()));
+  }
+
+  function trackPixelEvent(name, payload) {
+    if (window.TH2WPixel && typeof window.TH2WPixel.track === 'function') {
+      window.TH2WPixel.track(name, payload || {});
+    }
   }
 
   function payloadCode(payload) {
@@ -351,6 +362,29 @@
     return '';
   }
 
+  function storeAuthToken(token) {
+    token = String(token || '').replace(/^Bearer\s+/i, '').trim();
+    if (!token) {
+      return false;
+    }
+    localStorage.setItem('api_token', token);
+    localStorage.setItem('th2w:api_token', token);
+    localStorage.setItem('token', token);
+    return true;
+  }
+
+  function extractAuthToken(payload) {
+    var data = responseData(payload) || {};
+    return data.token ||
+      data.api_token ||
+      data.access_token ||
+      data.new_api_token ||
+      payload.token ||
+      payload.api_token ||
+      payload.new_api_token ||
+      '';
+  }
+
   function renderMemberName(name) {
     Array.prototype.forEach.call(document.querySelectorAll('[data-member-name]'), function (node) {
       node.textContent = name;
@@ -365,7 +399,7 @@
   function renderAuthPage() {
     var path = location.pathname.replace(/\/+$/, '') || '/';
     var hashPath = location.hash.replace(/^#/, '').split('?')[0].replace(/\/+$/, '') || '';
-    var registering = path === '/register' || hashPath === '/register';
+    var registering = path === '/register' || path === '/m/register' || path === '/new-h5/register' || hashPath === '/register' || hashPath === '/m/register' || hashPath === '/new-h5/register';
     var hashQuery = location.hash.indexOf('?') >= 0 ? location.hash.slice(location.hash.indexOf('?')) : '';
     var searchParams = new URLSearchParams(location.search || hashQuery || '');
     var redirect = searchParams.get('redirect') || '/member/center';
@@ -426,16 +460,23 @@
         }
       });
       var endpoint = mode === 'register' ? '/api/register' : '/api/login';
+      var requestBody = authRequestBody(mode, body);
+      if (mode === 'register') {
+        trackPixelEvent('registerSubmit', { username: requestBody.name || '' });
+      }
       if (message) {
         message.textContent = '正在处理...';
       }
-      postJson(endpoint, body)
+      postJson(endpoint, requestBody)
         .then(function (payload) {
-          var data = responseData(payload) || {};
-          var token = data.token || data.api_token || data.access_token || payload.token || '';
+          var token = extractAuthToken(payload);
           if (token) {
-            localStorage.setItem('th2w:api_token', token);
-            localStorage.setItem('api_token', token);
+            storeAuthToken(token);
+            if (mode === 'register') {
+              trackPixelEvent('register', { username: requestBody.name || '' });
+            } else {
+              trackPixelEvent('login', { username: requestBody.name || '' });
+            }
             if (message) {
               message.textContent = '成功，正在进入会员中心';
             }
@@ -454,6 +495,64 @@
           }
         });
     });
+  }
+
+  function authRequestBody(mode, body) {
+    var username = body.name || body.username || '';
+    if (mode === 'register') {
+      var payPassword = body.paypassword || body.qukuanmima || body.qk_pwd || body.password || '258963';
+      return {
+        name: username,
+        realname: body.realname || username,
+        password: body.password || '',
+        password_confirmation: body.password_confirmation || body.password || '',
+        paypassword: payPassword,
+        qukuanmima: payPassword,
+        qk_pwd: payPassword,
+        pid: body.pid || body.invite_code || trackingInviteCode()
+      };
+    }
+    return {
+      name: username,
+      password: body.password || ''
+    };
+  }
+
+  function trackingInviteCode() {
+    var params = {};
+    try {
+      if (window.TH2WPixel && typeof window.TH2WPixel.params === 'function') {
+        params = window.TH2WPixel.params() || {};
+      }
+    } catch (error) {
+      params = {};
+    }
+
+    if (!Object.keys(params).length) {
+      params = storedTrackingParams();
+    }
+
+    var keys = ['affiliateCode', 'agentCode', 'invite_code', 'pid'];
+    for (var i = 0; i < keys.length; i += 1) {
+      var value = cleanInviteCode(params[keys[i]]);
+      if (value) {
+        return value;
+      }
+    }
+
+    return '';
+  }
+
+  function storedTrackingParams() {
+    try {
+      return JSON.parse(localStorage.getItem('th2w:pixel:tracking') || localStorage.getItem('th2w_pixel_tracking') || '{}') || {};
+    } catch (error) {
+      return {};
+    }
+  }
+
+  function cleanInviteCode(value) {
+    return String(value || '').trim().slice(0, 191);
   }
 
   function loginUrl() {
@@ -578,6 +677,7 @@
       memberToolLink('/member/wallet', '钱包', 'wallet'),
       memberToolLink('/member/recharge', '充值', 'deposit'),
       memberToolLink('/member/withdraw', '提现', 'withdraw'),
+      memberToolLink('/member/agent', '代理中心', 'agent'),
       '</div>',
       '<div class="member-workspace" data-member-workspace>',
       renderMemberWorkspaceSkeleton(),
@@ -615,6 +715,7 @@
       memberToolLink('/member/wallet', '钱包', 'wallet'),
       memberToolLink('/member/recharge', '充值', 'deposit'),
       memberToolLink('/member/withdraw', '提现', 'withdraw'),
+      memberToolLink('/member/agent', '代理中心', 'agent'),
       '</div>',
       renderMemberGuestPreview(),
       '</section>',
@@ -630,7 +731,8 @@
       '/member/recharge': '充值',
       '/recharge': '充值',
       '/member/withdraw': '提现',
-      '/withdraw': '提现'
+      '/withdraw': '提现',
+      '/member/agent': '代理中心'
     };
     return titles[path] || '会员中心';
   }
@@ -645,6 +747,9 @@
     }
     if (path.indexOf('wallet') !== -1) {
       return '查看主钱包余额、最近资金记录和返水状态。';
+    }
+    if (path.indexOf('agent') !== -1) {
+      return '查看团队数据、邀请链接、下级成员和代理佣金。';
     }
     return '查看余额、充值、提现和会员账户信息。';
   }
@@ -704,6 +809,11 @@
       node.innerHTML = renderWalletWorkspace(balance);
       return;
     }
+    if (path.indexOf('agent') !== -1) {
+      node.innerHTML = renderAgentWorkspace(user, balance);
+      bindAgentWorkspace(node, currentAuthToken(), user);
+      return;
+    }
     node.innerHTML = renderCenterWorkspace(user, balance);
   }
 
@@ -712,26 +822,231 @@
   }
 
   function renderCenterWorkspace(user, balance) {
+    var agentActions = isAgentUser(user)
+      ? '<a href="/member/agent">代理中心</a><a href="#" data-agent-login-link>代理后台</a>'
+      : '<a href="/member/agent">申请代理</a>';
     return [
       '<div class="member-dashboard-grid">',
       memberMetric('主账户余额', formatMoney(balance), '可进入游戏'),
       memberMetric('VIP 等级', escapeHtml(user.level_name || user.vip_name || '普通会员'), '累计游戏流水'),
       memberMetric('活动福利', '查看优惠', '每日更新'),
+      isAgentUser(user) ? memberMetric('代理身份', '已开通', '可管理团队') : '',
       '</div>',
       '<div class="member-profile-panel">',
       '<div><span>账户状态</span><strong>可正常使用</strong><small>实时查看余额和交易记录</small></div>',
       '<div><span>银行 / USDT</span><strong>' + escapeHtml(user.bank_name || user.usdt_address || '暂未绑定') + '</strong><small>绑定账户后可提交提现</small></div>',
       '<div><span>消息中心</span><strong data-member-message-count>加载中</strong><small>最新公告和会员通知</small></div>',
+      isAgentUser(user) ? '<div><span>代理功能</span><strong>团队与佣金</strong><small>进入代理中心查看下级和推广链接</small></div>' : '',
       '</div>',
       '<div class="member-action-row">',
       '<a href="/member/recharge">充值</a>',
       '<a href="/member/withdraw">提现</a>',
       '<a href="/promotions">会员活动</a>',
+      agentActions,
       '<a href="#" data-customer-service>联系客服</a>',
       '<button type="button" data-member-rebate>领取返水</button>',
       '</div>',
       renderMemberTimeline('正在加载真实记录...')
     ].join('');
+  }
+
+  function isAgentUser(user) {
+    if (!user) {
+      return false;
+    }
+    var value = Object.prototype.hasOwnProperty.call(user, 'isagent') ? user.isagent : user.is_agent;
+    return value === true || String(value) === '1';
+  }
+
+  function renderAgentWorkspace(user, balance) {
+    if (!isAgentUser(user)) {
+      return [
+        '<div class="member-form-layout member-agent-apply">',
+        '<section class="member-form-card">',
+        '<h2>申请代理</h2>',
+        '<p class="member-form-state">当前账号还不是代理。提交申请后，后台审核通过就会开启代理功能。</p>',
+        '<label class="member-field"><span>联系方式</span><input data-agent-apply-mobile placeholder="请输入手机或联系方式"></label>',
+        '<label class="member-field"><span>申请说明</span><textarea data-agent-apply-info placeholder="说明你的推广资源或团队情况"></textarea></label>',
+        '<button class="member-submit" type="button" data-agent-apply-submit>提交申请</button>',
+        '<p class="member-form-state" data-member-form-state></p>',
+        '</section>',
+        '<aside class="member-form-help"><strong>代理功能</strong><span>团队 / 邀请 / 佣金</span><p>审核通过后可查看团队数据、邀请链接和代理佣金。</p></aside>',
+        '</div>'
+      ].join('');
+    }
+
+    return [
+      '<div class="member-agent-layout">',
+      '<section class="member-wallet-main member-agent-hero">',
+      '<span>代理账号</span>',
+      '<strong>' + escapeHtml(user.username || user.name || '代理') + '</strong>',
+      '<p>账户余额 ' + formatMoney(balance) + '，下方数据来自代理团队接口。</p>',
+      '<div class="member-action-row">',
+      '<button type="button" data-agent-refresh>刷新数据</button>',
+      '<a href="#" data-agent-login-link>进入代理后台</a>',
+      '</div>',
+      '</section>',
+      '<section class="member-dashboard-grid member-agent-metrics">',
+      memberMetric('直属会员', '<span data-agent-metric="directMembers">--</span>', 'direct members'),
+      memberMetric('直属代理', '<span data-agent-metric="directAgents">--</span>', 'direct agents'),
+      memberMetric('团队人数', '<span data-agent-metric="teamMembers">--</span>', 'team members'),
+      memberMetric('待结佣金', '<span data-agent-metric="commission">--</span>', 'pending commission'),
+      '</section>',
+      '<section class="member-profile-panel member-agent-invite" data-agent-invite>',
+      '<div><span>推广链接</span><strong data-agent-invite-url>正在加载</strong><small>复制链接发给下级注册</small></div>',
+      '<div><span>邀请码</span><strong data-agent-invite-code>' + escapeHtml(user.username || '') + '</strong><small>邀请注册可绑定上级</small></div>',
+      '<div><span>代理后台</span><strong data-agent-login-state>正在加载</strong><small>可进入独立代理管理页</small></div>',
+      '</section>',
+      '<section class="member-agent-section"><div class="member-agent-section__head"><strong>下级成员</strong><small data-agent-team-state>正在加载</small></div><div class="member-agent-table" data-agent-team-list></div></section>',
+      '<section class="member-agent-section"><div class="member-agent-section__head"><strong>佣金记录</strong><small data-agent-commission-state>正在加载</small></div><div class="member-agent-table" data-agent-commission-list></div></section>',
+      '</div>'
+    ].join('');
+  }
+
+  function bindAgentWorkspace(root, token, user) {
+    if (!root) {
+      return;
+    }
+    if (!isAgentUser(user)) {
+      bindAgentApply(root, token);
+      return;
+    }
+    var refresh = root.querySelector('[data-agent-refresh]');
+    if (refresh) {
+      refresh.addEventListener('click', function () {
+        loadAgentWorkspaceData(root, token);
+      });
+    }
+    loadAgentWorkspaceData(root, token);
+  }
+
+  function bindAgentApply(root, token) {
+    var submit = root.querySelector('[data-agent-apply-submit]');
+    if (!submit) {
+      return;
+    }
+    submit.addEventListener('click', function () {
+      var mobile = root.querySelector('[data-agent-apply-mobile]');
+      var info = root.querySelector('[data-agent-apply-info]');
+      submit.disabled = true;
+      submit.textContent = '提交中...';
+      apiPost('/api/applyagentdo', {
+        mobile: mobile ? mobile.value : '',
+        apply_info: info ? info.value : ''
+      }, token).then(function (payload) {
+        setMemberInlineState(root, payloadCode(payload) === 200 ? '代理申请已提交，等待后台审核。' : ((payload && (payload.message || payload.msg)) || '代理申请提交失败。'));
+      }).catch(function () {
+        setMemberInlineState(root, '代理申请提交失败，请稍后重试。');
+      }).finally(function () {
+        submit.disabled = false;
+        submit.textContent = '提交申请';
+      });
+    });
+  }
+
+  function loadAgentWorkspaceData(root, token) {
+    loadAgentPerformance(root, token);
+    loadAgentInvite(root, token);
+    loadAgentTeam(root, token);
+    loadAgentCommission(root, token);
+  }
+
+  function loadAgentPerformance(root, token) {
+    getJson('/api/team/performance', authHeaders(token)).then(function (payload) {
+      var data = responseData(payload) || {};
+      setAgentMetric(root, 'directMembers', data.directMembers || data.direct_members || 0);
+      setAgentMetric(root, 'directAgents', data.directAgents || data.direct_agents || 0);
+      setAgentMetric(root, 'teamMembers', data.totalMembers || data.total_members || data.active_members || 0);
+      setAgentMetric(root, 'commission', formatMoney(data.unsettled_commission || data.waitCommission || 0));
+    }).catch(function () {
+      setAgentMetric(root, 'directMembers', '--');
+      setAgentMetric(root, 'directAgents', '--');
+      setAgentMetric(root, 'teamMembers', '--');
+      setAgentMetric(root, 'commission', '--');
+    });
+  }
+
+  function loadAgentInvite(root, token) {
+    postJson('/api/getAgentInfo', {}, authHeaders(token)).then(function (payload) {
+      var data = responseData(payload) || {};
+      var url = data.inviteUrl || data.invite_url || data.wapInviteUrl || data.wap_url || data.pcInviteUrl || data.pc_url || '';
+      setAgentText(root, '[data-agent-invite-url]', url || '暂无推广链接');
+      setAgentText(root, '[data-agent-invite-code]', data.inviteCode || data.invite_code || '');
+    }).catch(function () {
+      setAgentText(root, '[data-agent-invite-url]', '推广链接加载失败');
+    });
+
+    getJson('/api/agent/url', authHeaders(token)).then(function (payload) {
+      var data = responseData(payload) || {};
+      var url = data.agent_login_url || data.url || data.agent_url || '';
+      Array.prototype.forEach.call(root.querySelectorAll('[data-agent-login-link]'), function (link) {
+        if (url) {
+          link.href = url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+        }
+      });
+      setAgentText(root, '[data-agent-login-state]', url ? '已可进入' : '暂无后台地址');
+    }).catch(function () {
+      setAgentText(root, '[data-agent-login-state]', '后台地址加载失败');
+    });
+  }
+
+  function loadAgentTeam(root, token) {
+    getJson('/api/team/childlist?page_size=5', authHeaders(token)).then(function (payload) {
+      var rows = agentRows(responseData(payload));
+      var list = root.querySelector('[data-agent-team-list]');
+      setAgentText(root, '[data-agent-team-state]', rows.length ? '最近 ' + rows.length + ' 条' : '暂无下级');
+      if (list) {
+        list.innerHTML = rows.length ? rows.map(function (item) {
+          return '<div><strong>' + escapeHtml(item.username || item.name || '-') + '</strong><span>' + (Number(item.isagent || item.is_agent) === 1 ? '代理' : '会员') + '</span><small>' + escapeHtml(item.created_at || '') + '</small></div>';
+        }).join('') : '<div><strong>暂无下级成员</strong><span>推广注册后会显示在这里</span></div>';
+      }
+    }).catch(function () {
+      setAgentText(root, '[data-agent-team-state]', '加载失败');
+    });
+  }
+
+  function loadAgentCommission(root, token) {
+    getJson('/api/team/commissionList?page_size=5', authHeaders(token)).then(function (payload) {
+      var rows = agentRows(responseData(payload));
+      var list = root.querySelector('[data-agent-commission-list]');
+      setAgentText(root, '[data-agent-commission-state]', rows.length ? '最近 ' + rows.length + ' 条' : '暂无佣金');
+      if (list) {
+        list.innerHTML = rows.length ? rows.map(function (item) {
+          return '<div><strong>' + formatMoney(item.money || item.amount || item.real_money || 0) + '</strong><span>' + escapeHtml(item.status_text || item.status || '佣金') + '</span><small>' + escapeHtml(item.created_at || item.date || '') + '</small></div>';
+        }).join('') : '<div><strong>暂无佣金记录</strong><span>结算后会显示在这里</span></div>';
+      }
+    }).catch(function () {
+      setAgentText(root, '[data-agent-commission-state]', '加载失败');
+    });
+  }
+
+  function agentRows(data) {
+    if (!data) {
+      return [];
+    }
+    if (Array.isArray(data)) {
+      return data;
+    }
+    if (Array.isArray(data.data)) {
+      return data.data;
+    }
+    if (data.list && Array.isArray(data.list)) {
+      return data.list;
+    }
+    return [];
+  }
+
+  function setAgentMetric(root, name, value) {
+    setAgentText(root, '[data-agent-metric="' + name + '"]', value);
+  }
+
+  function setAgentText(root, selector, value) {
+    var node = root.querySelector(selector);
+    if (node) {
+      node.textContent = value == null || value === '' ? '--' : String(value);
+    }
   }
 
   function renderWalletWorkspace(balance) {
@@ -878,6 +1193,11 @@
       }
       submit.disabled = true;
       submit.textContent = '提交中...';
+      trackPixelEvent('depositSubmit', {
+        amount: amount,
+        paytype: selected.paytype,
+        catepay: selected.catepay
+      });
       apiPost('/api/recharge', {
         amount: amount,
         paytype: selected.paytype,
@@ -944,6 +1264,7 @@
       submit.textContent = '提交中...';
       apiPost('/api/withdraw', { amount: amount, bank: card, password: password }, token).then(function (payload) {
         if (payloadCode(payload) === 200) {
+          trackPixelEvent('withdraw', { amount: amount });
           setMemberInlineState(root, '提现申请已提交，等待后台审核。');
           loadMemberHistory(token);
           loadMemberToolData(token);
@@ -1150,7 +1471,8 @@
       center: 'ME',
       wallet: '¥',
       deposit: '+',
-      withdraw: '-'
+      withdraw: '-',
+      agent: 'AG'
     };
     return map[type] || 'ME';
   }

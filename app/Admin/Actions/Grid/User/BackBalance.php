@@ -3,6 +3,7 @@
 namespace App\Admin\Actions\Grid\User;
 
 use App\Admin\Support\OperationPermission;
+use App\Admin\Support\OpsChangeAudit;
 use App\Models\TransferLog;
 use App\Models\UserOperateLog;
 use App\Models\User_Api;
@@ -516,6 +517,23 @@ class BackBalance extends RowAction
             '',
             '管理员一键回收【'.$user->username.'】平台余额，平台'.$log->api_type.'，订单'.$log->order_no.'，金额'.$amount.'，调整前金额'.$beforeBalance.'，调整后金额'.$afterBalance,
             $auditInfo === false ? '' : $auditInfo
+        );
+
+        OpsChangeAudit::writeAdminAudit(
+            'member.balance.recover',
+            'member_balance',
+            'Recover upstream balance for '.$user->username.' order '.$log->order_no,
+            [
+                'user_id' => $user->id,
+                'username' => $user->username,
+                'platform' => $log->api_type,
+                'order_no' => $log->order_no,
+                'amount' => $amount,
+                'before_balance' => $beforeBalance,
+                'after_balance' => $afterBalance,
+                'recovery_status' => $log->recovery_status,
+            ],
+            $request
         );
     }
 

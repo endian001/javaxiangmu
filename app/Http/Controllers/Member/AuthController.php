@@ -15,6 +15,7 @@ use App\Models\Template;
 use App\Models\UserOperateLog;
 use App\Services\Lib;
 use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Str;
 use App\Models\Session;
 
 class AuthController extends Controller
@@ -47,46 +48,56 @@ class AuthController extends Controller
     public function registerDo(Request $request)
     {
         $data = $request->all();
+        if (empty($data['name']) || empty($data['password'])) {
+            return $this->returnMsg(500, [], '用户名和密码不能为空');
+        }
+        if (!isset($data['realname']) || $data['realname'] === '') {
+            $data['realname'] = $data['name'];
+        }
+        $payPassword = $data['qukuanmima'] ?? ($data['paypassword'] ?? '258963');
+        $pid = intval($request->cookie('pid', $data['pid'] ?? 0));
+
         $user = User::where('username', $data['name'])->first();
         if ($user) return $this->returnMsg(201);
-        $tg = new TgService;
-        $result = $tg->register($data['name']);
-        \Illuminate\Support\Facades\Log::info("注册回调");
-        \Illuminate\Support\Facades\Log::info($result);
-        if ($result['code'] != 200) {
-            return $this->returnMsg(500, [], $result['message']);
+
+        // The external game account registration can fail or require a platform code;
+        // do not block local member registration. Game launch flows can provision later.
+        try {
+            $tg = new TgService;
+            $result = $tg->register($data['api_code'] ?? 'wg', $data['name']);
+            \Illuminate\Support\Facades\Log::info('member external register result', ['result' => $result]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('External member registration failed; local registration will continue. '.$e->getMessage());
         }
+
         $is_agent = 0;
-        $pp_user = User::where('id',intval($_COOKIE["pid"]))->first();
-        // if ($pp_user && $pp_user->allowagent == 1) $is_agent = 1;
+        $pp_user = $pid > 0 ? User::where('id', $pid)->first() : null;
         $arr = [
             'username' => $data['name'],
             'password' => Hash::make($data['password']),
             'realname' => $data['realname'],
             'vip' => 1,
-            'pid' => intval($_COOKIE["pid"]),
+            'level' => 1,
+            'pid' => $pid,
             'status' => 1,
             'reg_ip' => $request->ip(),
-            'paypwd' => Hash::make($data['qukuanmima']),
+            'paypwd' => Hash::make($payPassword),
             'isagent' => $is_agent,
-            'allowagent' => 1
+            'allowagent' => 1,
+            'api_token' => Str::random(60)
         ];
         $res = User::create($arr);
-        \Illuminate\Support\Facades\Log::info("注册回调");
-        \Illuminate\Support\Facades\Log::info($res);
-        if (intval($_COOKIE["pid"]) > 0) {
-            $data = [];
-            $puser = User::where('id', $_COOKIE["pid"])->first();
+        if ($pid > 0 && $pp_user) {
+            $reportData = [];
             $Gamereport = new GamereportService();
-            $data['uid'] = $puser->id;
-            $data['pid'] = $puser->pid;
-
-            $data['isagent'] = $puser->isagent;
-            $data['recnum'] =  1;
-            $Gamereport->add($data);
+            $reportData['uid'] = $pp_user->id;
+            $reportData['pid'] = $pp_user->pid;
+            $reportData['isagent'] = $pp_user->isagent;
+            $reportData['recnum'] = 1;
+            $Gamereport->add($reportData);
         }
         Auth::login($res);
-        return $this->returnMsg($res ? 200 : 500);
+        return $this->returnMsg($res ? 200 : 500, $res ? $this->authResponseData($res) : []);
     }
 
     public function login()
@@ -118,6 +129,9 @@ class AuthController extends Controller
             $user->lastip = $request->getClientIp();
             $user->logintime = time();
             $user->loginsum++;
+            if (empty($user->api_token)) {
+                $user->api_token = Str::random(60);
+            }
             $user->save();
             $uservip = UserVip::where('id',$user->level)->first();
             if($uservip){
@@ -134,12 +148,29 @@ class AuthController extends Controller
 
             // Syslog::create($datas);
 
-            UserOperateLog::insertLog($user->id, 1, $_SERVER['HTTP_USER_AGENT'], $ip, $ip_address, '会员【' . $user->username . '】登录成功');
+            $userAgent = $request->userAgent() ?: ($_SERVER['HTTP_USER_AGENT'] ?? '');
+            UserOperateLog::insertLog($user->id, 1, $userAgent, $ip, $ip_address, 'member login success');
 
-            return $this->returnMsg(200);
+            return $this->returnMsg(200, $this->authResponseData($user));
         } else {
             return $this->returnMsg(203);
         }
+    }
+
+    protected function authResponseData(User $user)
+    {
+        return [
+            'id' => (int) $user->id,
+            'username' => $user->username,
+            'realname' => $user->realname,
+            'api_token' => $user->api_token,
+            'token' => $user->api_token,
+            'isagent' => (int) $user->isagent,
+            'is_agent' => (int) $user->isagent,
+            'allowagent' => (int) $user->allowagent,
+            'balance' => $user->balance,
+            'level' => $user->level,
+        ];
     }
 
     public function logout(Request $request)
@@ -153,7 +184,8 @@ class AuthController extends Controller
             if ($res['code'] == 200) {
                 $ip_address = $res['data']['country'] . $res['data']['province'] . $res['data']['city'];
             }
-            UserOperateLog::insertLog($user->id, 2, $_SERVER['HTTP_USER_AGENT'], $ip, $ip_address, '会员【' . $user->username . '】注销账号');
+            $userAgent = $request->userAgent() ?: ($_SERVER['HTTP_USER_AGENT'] ?? '');
+            UserOperateLog::insertLog($user->id, 2, $userAgent, $ip, $ip_address, 'member logout');
             Auth::logout();
         }
 

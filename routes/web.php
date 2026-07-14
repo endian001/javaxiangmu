@@ -57,8 +57,8 @@ Route::domain(env('AGENT_URL'))->group(function (){
 // -------------------手机版-----------------
 Route::domain(env('WAP_URL'))->group(function (){
 
-    Route::any('/login', function () { return response()->file(public_path('index.html')); });
-    Route::any('/register', function () { return response()->file(public_path('index.html')); });
+    Route::any('/login', function () { return response()->file(public_path('auth.html')); });
+    Route::any('/register', function () { return response()->file(public_path('auth.html')); });
     Route::get('/','Wap\IndexController@index');
     Route::get('/activity','Wap\IndexController@promotionEntry');
     Route::get('/activities','Wap\IndexController@promotionEntry');
@@ -107,33 +107,45 @@ Route::domain(env('WAP_URL'))->group(function (){
         Route::post('/bindCardDo','Member\PayController@bindCardDo');
 
         Route::get('/member/game','Member\MemberController@game');
-        Route::get('/game/agent-fenxiang','Member\MemberController@agentFenxiang');
+        Route::get('/member/agent-fenxiang','Member\MemberController@agentFenxiang');
     });
 });
 
 
 // ----pc----
 Route::get('/','Web\IndexController@index');
-Route::get('/download','Web\IndexController@app');
-Route::get('/sport','Web\IndexController@sport');
-Route::get('/realbet','Web\IndexController@realbet');
-Route::get('/joker','Web\IndexController@joker');
-Route::get('/gaming','Web\IndexController@gaming');
-Route::get('/lottery','Web\IndexController@lottery');
+Route::get('/download', function () { return response()->file(public_path('pages/download.html')); });
+Route::get('/sport', function () { return response()->file(public_path('pages/sport.html')); });
+Route::get('/realbet', function () { return response()->file(public_path('pages/realbet.html')); });
+Route::get('/joker', function () { return response()->file(public_path('pages/joker.html')); });
+Route::get('/gaming', function () { return response()->file(public_path('pages/gaming.html')); });
+Route::get('/lottery', function () { return response()->file(public_path('pages/lottery.html')); });
 Route::get('/concise','Web\IndexController@concise');
-Route::get('/activity','Web\IndexController@promotionEntry');
-Route::get('/activities','Web\IndexController@promotionEntry');
-Route::get('/promotions','Web\IndexController@promotionEntry');
+Route::get('/activity', function () { return response()->file(public_path('pages/activity.html')); });
+Route::get('/activities', function () { return response()->file(public_path('pages/activity.html')); });
+Route::get('/promotions', function () { return response()->file(public_path('pages/activity.html')); });
 Route::get('/articles','Web\IndexController@articles');
 Route::get('/agent','Web\IndexController@agent');
 Route::get('/appindex','Web\IndexController@appindex');
-Route::get('/login', function () { return response()->file(public_path('index.html')); });
-Route::get('/register', function () { return response()->file(public_path('index.html')); });
-Route::get('/new-h5/login', function () { return response()->file(public_path('new-h5/index.html')); });
-Route::get('/new-h5/register', function () { return response()->file(public_path('new-h5/index.html')); });
+Route::get('/login', function () { return response()->file(public_path('auth.html')); });
+Route::get('/register', function () { return response()->file(public_path('auth.html')); });
+Route::any('/m/login', function () { return response()->file(public_path('auth.html')); });
+Route::any('/m/register', function () { return response()->file(public_path('auth.html')); });
+Route::get('/new-h5/login', function () { return response()->file(public_path('auth.html')); });
+Route::get('/new-h5/register', function () { return response()->file(public_path('auth.html')); });
 Route::post('/registerDo','Member\AuthController@registerDo');
 Route::post('/loginDo','Member\AuthController@loginDo');
 Route::get('/logout','Member\AuthController@logout');
+Route::get('/play-game-url','Api\IndexController@getGameUrl')->middleware(['auth']);
+Route::prefix('support-api')->middleware(['auth'])->group(function () {
+    Route::get('/work-orders','Api\IndexController@workOrderList');
+    Route::post('/work-orders','Api\IndexController@workOrderCreate');
+    Route::match(['get', 'post'], '/work-orders/list','Api\IndexController@workOrderList');
+    Route::post('/work-orders/create','Api\IndexController@workOrderCreate');
+    Route::match(['get', 'post'], '/work-orders/{id}','Api\IndexController@workOrderDetail');
+    Route::post('/work-orders/{id}/reply','Api\IndexController@workOrderReply');
+    Route::post('/work-orders/{id}/close','Api\IndexController@workOrderClose');
+});
 Route::post('/upload','Web\IndexController@upload');//上传文件
 Route::any('/notify','Member\PayController@notify');
 Route::post('/notify/verify','Api\IndexController@wxgameVerify');
@@ -188,8 +200,46 @@ Route::group(['middleware' => 'api'], function () {
     Route::get('/api/team/childlist','Agent\IndexController@getChildList')->middleware(['api_auth']);
 });
 
+Route::get('/wallet', function () { return redirect('/member/wallet'); });
+Route::get('/recharge', function () { return redirect('/member/recharge'); });
+Route::get('/withdraw', function () { return redirect('/member/withdraw'); });
+Route::get('/cards', function () { return redirect('/member/bindCard'); });
+Route::get('/bankcard', function () { return redirect('/member/bindCard'); });
+
 Route::prefix('member')->middleware(['auth'])->group(function () {
     Route::get('/center','Member\MemberController@center');//个人中心
+    Route::get('/agent', function () { return response()->file(public_path('index.html')); });
+    Route::get('/play-game-url','Api\IndexController@getGameUrl');
+    Route::get('/work-orders','Api\IndexController@workOrderList');
+    Route::post('/work-orders','Api\IndexController@workOrderCreate');
+    Route::match(['get', 'post'], '/work-orders/list','Api\IndexController@workOrderList');
+    Route::post('/work-orders/create','Api\IndexController@workOrderCreate');
+    Route::match(['get', 'post'], '/work-orders/{id}','Api\IndexController@workOrderDetail');
+    Route::post('/work-orders/{id}/reply','Api\IndexController@workOrderReply');
+    Route::post('/work-orders/{id}/close','Api\IndexController@workOrderClose');
+    Route::match(['get', 'post'], '/ticket/list','Api\IndexController@workOrderList');
+    Route::post('/ticket/create','Api\IndexController@workOrderCreate');
+    Route::match(['get', 'post'], '/ticket/{id}','Api\IndexController@workOrderDetail');
+    Route::post('/ticket/{id}/reply','Api\IndexController@workOrderReply');
+    Route::post('/ticket/{id}/close','Api\IndexController@workOrderClose');
+    Route::match(['get', 'post'], '/cs/list','Api\IndexController@workOrderList');
+    Route::post('/cs/create','Api\IndexController@workOrderCreate');
+    Route::match(['get', 'post'], '/cs/{id}','Api\IndexController@workOrderDetail');
+    Route::post('/cs/{id}/reply','Api\IndexController@workOrderReply');
+    Route::post('/cs/{id}/close','Api\IndexController@workOrderClose');
+    Route::match(['get', 'post'], '/service-data','Api\IndexController@workOrderList');
+    Route::post('/service-create','Api\IndexController@workOrderCreate');
+    Route::match(['get', 'post'], '/service-detail','Api\IndexController@workOrderDetail');
+    Route::post('/service-reply','Api\IndexController@workOrderReply');
+    Route::post('/service-close','Api\IndexController@workOrderClose');
+    Route::match(['get', 'post'], '/assist','Api\IndexController@workOrderList');
+    Route::post('/assistCreate','Api\IndexController@workOrderCreate');
+    Route::match(['get', 'post'], '/assistDetail','Api\IndexController@workOrderDetail');
+    Route::post('/assistReply','Api\IndexController@workOrderReply');
+    Route::post('/assistClose','Api\IndexController@workOrderClose');
+    Route::get('/bank','Member\PayController@bindCard');
+    Route::get('/bankcard','Member\PayController@bindCard');
+    Route::get('/cards','Member\PayController@bindCard');
     Route::get('/centernew','Member\MemberController@centernew');//个人中心
     Route::post('/fillData','Member\MemberController@fillData');//完善信息
     Route::get('/editPassword','Member\AuthController@editPassword');//修改密码
