@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <title>在线客服 - TH2.VIP</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#c2dbe3;color:#2d465b;font-family:Inter,Poppins,Arial,"Microsoft YaHei",sans-serif}a{text-decoration:none;color:inherit}.chat-shell{min-height:100vh;background:radial-gradient(circle at 14% 0%,rgba(255,255,255,.88),transparent 24%),radial-gradient(circle at 86% 10%,rgba(255,235,148,.52),transparent 26%),linear-gradient(180deg,#cde6ee 0%,#e9f6f9 46%,#fff 100%);padding:20px}.chat-wrap{max-width:960px;margin:0 auto}.chat-top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px}.brand strong{display:block;font-size:30px;color:#d88c19;font-weight:900}.brand span{display:block;margin-top:-4px;font-size:10px;letter-spacing:4px;color:#8da0ad}.home-link{height:40px;border-radius:999px;padding:0 16px;display:inline-flex;align-items:center;background:#fff;color:#4f687b;font-weight:900;border:1px solid rgba(255,255,255,.86);box-shadow:0 8px 18px rgba(80,130,158,.13)}.chat-card{height:calc(100vh - 112px);min-height:560px;border-radius:22px;background:rgba(255,255,255,.95);border:1px solid rgba(255,255,255,.86);box-shadow:0 16px 34px rgba(82,132,158,.16);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}.chat-head{padding:18px 20px;background:linear-gradient(135deg,#bfe8f6 0%,#f7fcff 58%,#ffe7a1 100%);display:flex;align-items:center;justify-content:space-between;gap:12px}.chat-head h1{margin:0;font-size:26px;color:#263f55}.chat-head p{margin:5px 0 0;color:#5c7688;font-weight:800}.status{display:inline-flex;align-items:center;gap:7px;border-radius:999px;background:#fff;padding:8px 12px;color:#377457;font-weight:900}.status:before{content:"";width:9px;height:9px;border-radius:50%;background:#20b26b;box-shadow:0 0 0 5px rgba(32,178,107,.14)}.chat-messages{padding:18px;overflow-y:auto;background:linear-gradient(180deg,#f7fbfe,#eef7fb)}.state{min-height:140px;display:grid;place-items:center;color:#6d8395;font-weight:900;text-align:center}.msg{display:flex;margin-bottom:12px}.msg.admin{justify-content:flex-start}.msg.user{justify-content:flex-end}.bubble{max-width:min(78%,680px);border-radius:16px;padding:11px 13px;background:#fff;border:1px solid #d8edf8;box-shadow:0 6px 14px rgba(68,120,148,.08)}.msg.user .bubble{background:#fff3c8;border-color:#f2d17b}.bubble strong{display:block;margin-bottom:5px;font-size:12px;color:#7b91a2}.bubble p{margin:0;color:#2f465a;line-height:1.55;white-space:pre-wrap;word-break:break-word}.bubble small{display:block;margin-top:6px;color:#8ba0af;font-weight:800}.composer{display:grid;grid-template-columns:1fr 112px;gap:10px;padding:14px;background:#fff;border-top:1px solid #d8edf8}.composer textarea{width:100%;min-height:54px;max-height:140px;border:1px solid #cfe6f4;border-radius:15px;padding:12px 14px;resize:vertical;color:#30465b;font:inherit;font-weight:700}.composer button{border:0;border-radius:999px;background:linear-gradient(180deg,#fff0b2,#f0c45b 48%,#bc792c);color:#573508;font-weight:1000;cursor:pointer;box-shadow:0 10px 20px rgba(183,116,31,.22)}.composer button:disabled{opacity:.58;cursor:not-allowed}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:min(420px,calc(100vw - 32px));padding:12px 16px;border-radius:14px;background:#263a50;color:#fff;font-weight:900;box-shadow:0 12px 28px rgba(20,40,56,.24);z-index:20}@media(max-width:640px){.chat-shell{padding:12px}.chat-top{height:56px}.brand strong{font-size:24px}.brand span{letter-spacing:2px}.chat-card{height:calc(100vh - 80px);min-height:520px;border-radius:16px}.chat-head{display:grid;padding:15px}.chat-head h1{font-size:23px}.composer{grid-template-columns:1fr}.composer button{height:44px}.bubble{max-width:88%}}
+  </style>
+</head>
+<body>
+  <main class="chat-shell">
+    <div class="chat-wrap">
+      <header class="chat-top"><a class="brand" href="/"><strong>TH2.VIP</strong><span>在线游戏</span></a><a class="home-link" href="/">返回首页</a></header>
+      <section class="chat-card">
+        <header class="chat-head">
+          <div><h1>在线客服</h1><p>正在连接客服，请直接输入你要咨询的问题。</p></div>
+          <span class="status" data-chat-status>实时在线</span>
+        </header>
+        <div class="chat-messages" data-chat-messages><div class="state">正在连接客服...</div></div>
+        <form class="composer" data-live-chat-form>
+          <textarea name="content" placeholder="请输入消息..." maxlength="1000" required></textarea>
+          <button type="submit" disabled>发送</button>
+        </form>
+      </section>
+    </div>
+  </main>
+  <script>
+    (function(){'use strict';
+      var state={sessionId:0,lastId:0,ready:false,polling:false};
+      var messages=document.querySelector('[data-chat-messages]');
+      var form=document.querySelector('[data-live-chat-form]');
+      var textarea=form.querySelector('textarea');
+      var button=form.querySelector('button');
+      var statusNode=document.querySelector('[data-chat-status]');
+      var visitorId=visitor();
+      function token(){var keys=['api_token','token','Authorization','userToken','member_token','th2w:api_token'];for(var i=0;i<keys.length;i+=1){var v=localStorage.getItem(keys[i])||sessionStorage.getItem(keys[i]);if(v){return String(v).replace(/^Bearer\s+/i,'').trim();}}return '';}
+      function headers(json){var h={'Accept':'application/json','X-Visitor-Id':visitorId};if(json)h['Content-Type']='application/json';var t=token();if(t)h.Authorization='Bearer '+t;return h;}
+      function visitor(){var key='th2w:visitor_id';var value=localStorage.getItem(key);if(!value){value=(window.crypto&&crypto.randomUUID?crypto.randomUUID():'visitor-'+Date.now()+'-'+Math.random().toString(16).slice(2));localStorage.setItem(key,value);}return value;}
+      function api(path,options){options=options||{};return fetch(path,{method:options.method||'GET',headers:headers(!!options.body),body:options.body?JSON.stringify(options.body):undefined}).then(function(r){return r.json().then(function(payload){if(!r.ok||Number(payload.code)>=400){throw new Error(payload.message||'请求失败');}return payload;});});}
+      function data(payload){return payload&&Object.prototype.hasOwnProperty.call(payload,'data')?payload.data:payload;}
+      function boot(){api('/api/live-chat/session',{method:'POST',body:{visitor_id:visitorId}}).then(function(payload){var body=data(payload)||{};setSession(body.session);renderMessages(body.messages||[],false);ready(true);}).catch(function(error){ready(false,error.message||'客服连接失败，请稍后刷新');});}
+      function setSession(session){session=session||{};state.sessionId=Number(session.id||state.sessionId||0);}
+      function ready(ok,message){state.ready=ok;button.disabled=!ok;statusNode.textContent=ok?'实时在线':'连接异常';if(!ok){messages.innerHTML='<div class="state">'+esc(message||'客服连接失败，请稍后刷新')+'</div>';}}
+      function poll(){if(!state.ready||!state.sessionId||state.polling)return;state.polling=true;var url='/api/live-chat/messages?visitor_id='+encodeURIComponent(visitorId)+'&session_id='+encodeURIComponent(state.sessionId)+'&after_id='+encodeURIComponent(state.lastId);fetch(url,{headers:headers(false)}).then(function(r){return r.json();}).then(function(payload){var body=data(payload)||{};setSession(body.session);renderMessages(body.messages||[],true);}).catch(function(){}).finally(function(){state.polling=false;});}
+      function send(content){button.disabled=true;api('/api/live-chat/messages',{method:'POST',body:{visitor_id:visitorId,session_id:state.sessionId,content:content}}).then(function(payload){var body=data(payload)||{};setSession(body.session);if(body.message){renderMessages([body.message],true);}textarea.value='';button.disabled=false;poll();}).catch(function(error){button.disabled=false;toast(error.message||'发送失败');});}
+      function renderMessages(rows,append){if(!append){messages.innerHTML='';state.lastId=0;}if(!rows.length&&!append){messages.innerHTML='<div class="state">客服已连接，请发送你的问题。</div>';return;}if(rows.length&&messages.querySelector('.state'))messages.innerHTML='';rows.forEach(function(item){state.lastId=Math.max(state.lastId,Number(item.id||0));messages.insertAdjacentHTML('beforeend','<div class="msg '+(item.is_admin?'admin':'user')+'"><div class="bubble"><strong>'+(item.is_admin?'客服':'我')+'</strong><p>'+esc(item.content)+'</p><small>'+esc(item.created_at||'')+'</small></div></div>');});messages.scrollTop=messages.scrollHeight;}
+      form.addEventListener('submit',function(event){event.preventDefault();var content=textarea.value.trim();if(!content||!state.ready)return;send(content);});
+      function toast(message){var node=document.createElement('div');node.className='toast';node.textContent=message;document.body.appendChild(node);setTimeout(function(){node.remove();},2600);}
+      function esc(value){return String(value==null?'':value).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+      boot();
+      setInterval(poll,2500);
+    }());
+  </script>
+</body>
+</html>

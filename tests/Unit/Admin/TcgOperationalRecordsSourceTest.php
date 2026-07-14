@@ -130,6 +130,61 @@ class TcgOperationalRecordsSourceTest extends TestCase
         }
     }
 
+    public function test_player_management_and_level_batch_uses_dedicated_tables_fields_and_page_copy()
+    {
+        $source = file_get_contents($this->root().'/app/Admin/Controllers/TcgOperationalRecordsController.php');
+
+        foreach ([
+            '20430' => 'tcg_operation_tags',
+            '680308' => 'tcg_otp_verification_records',
+            '250003' => 'tcg_player_level_histories',
+            '250004' => 'tcg_frontend_copy_settings',
+        ] as $code => $table) {
+            $this->assertStringContainsString("'".$code."' => [", $source);
+            $this->assertStringContainsString("'table' => '".$table."'", $source);
+        }
+
+        foreach ([
+            'tag_code',
+            'tag_name',
+            'tag_color',
+            'source',
+            'otp_scene',
+            'channel',
+            'receiver',
+            'request_ip',
+            'device_id',
+            'verify_result',
+            'failure_reason',
+            'old_level',
+            'new_level',
+            'change_source',
+            'effective_at',
+            'expired_at',
+            'copy_key',
+            'locale',
+            'client_type',
+            'body',
+            'version',
+            'published_at',
+        ] as $field) {
+            $this->assertStringContainsString("'name' => '".$field."'", $source);
+        }
+
+        foreach ([
+            '新增运营标签',
+            '登记 OTP 记录',
+            '登记等级变更',
+            '新增前台文案',
+            '暂无运营标签',
+            '暂无 OTP 验证记录',
+            '暂无等级历史',
+            '暂无前台文案',
+        ] as $copy) {
+            $this->assertStringContainsString($copy, $source);
+        }
+    }
+
     public function test_business_and_fallback_queries_use_the_correct_scope()
     {
         $source = file_get_contents($this->root().'/app/Admin/Controllers/TcgOperationalRecordsController.php');
@@ -221,6 +276,37 @@ class TcgOperationalRecordsSourceTest extends TestCase
             'points_amount',
             'delivery_info',
             'related_order_no',
+        ] as $column) {
+            $this->assertStringContainsString($column, $migration);
+        }
+    }
+
+    public function test_player_operation_migration_creates_dedicated_tables()
+    {
+        $path = $this->root().'/database/migrations/2026_07_13_000008_create_tcg_player_operation_tables.php';
+
+        $this->assertFileExists($path);
+        $migration = file_get_contents($path);
+
+        foreach ([
+            'tcg_operation_tags',
+            'tcg_otp_verification_records',
+            'tcg_player_level_histories',
+            'tcg_frontend_copy_settings',
+        ] as $table) {
+            $this->assertStringContainsString("Schema::create('".$table."'", $migration);
+        }
+
+        foreach ([
+            'tag_code',
+            'otp_scene',
+            'verify_result',
+            'old_level',
+            'new_level',
+            'copy_key',
+            'locale',
+            'client_type',
+            'published_at',
         ] as $column) {
             $this->assertStringContainsString($column, $migration);
         }

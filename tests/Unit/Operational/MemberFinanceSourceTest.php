@@ -26,7 +26,7 @@ class MemberFinanceSourceTest extends TestCase
         $method = $this->methodBody($controller, 'getUserBalance');
 
         $this->assertStringContainsString('Usersmoney::upinfo', $method);
-        $this->assertMatchesRegularExpression('/return\s+\$this->returnMsg\(200,\s*\$data/', $method);
+        $this->assertRegExp('/return\s+\$this->returnMsg\(200,\s*\$data/', $method);
     }
 
     public function test_activity_apply_is_scoped_to_activity_and_checks_availability()

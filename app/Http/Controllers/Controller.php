@@ -39,11 +39,17 @@ class Controller extends BaseController
     protected function customerServicePayload($playerLevel = 0)
     {
         $linkUrl = $this->customerServiceLink();
-        $realtimeUrl = $this->realtimeCustomerServiceUrl();
+        $externalRealtimeUrl = $this->realtimeCustomerServiceUrl();
         $services = $this->customerServiceEntries($playerLevel);
         $streamChat = $this->customerStreamChatStatus();
         $streamReady = $streamChat['enabled'] && $streamChat['configured'];
         $appUrl = rtrim((string) env('APP_URL'), '/');
+        $internalLiveChatEnabled = (int) SystemConfig::getValue('internal_live_chat_enabled') === 1;
+        $internalLiveChatUrl = $internalLiveChatEnabled ? $appUrl . '/support/live-chat.html' : '';
+        $realtimeUrl = $externalRealtimeUrl ?: ($internalLiveChatUrl ?: ($streamReady ? $appUrl . '/support/live-chat.html' : ''));
+        $realtimeProvider = $externalRealtimeUrl !== ''
+            ? 'external'
+            : ($realtimeUrl !== '' ? 'internal' : '');
         $serviceType = SystemConfig::getValue('service_type') ?: 'link';
         $workOrderEnabled = $serviceType === 'gongdan';
         $workOrderPageUrl = $workOrderEnabled ? $appUrl . '/support/work-orders.html' : '';
@@ -71,8 +77,12 @@ class Controller extends BaseController
             'configured' => $serviceUrl !== '' || $streamReady || $workOrderEnabled || count($services) > 0,
             'link_configured' => $linkUrl !== '',
             'realtime_enabled' => $realtimeEnabled,
+            'realtime_provider' => $realtimeProvider,
             'realtime_url' => $realtimeUrl,
             'livechat_url' => $realtimeUrl,
+            'external_livechat_url' => $externalRealtimeUrl,
+            'internal_live_chat_enabled' => $internalLiveChatEnabled,
+            'internal_live_chat_url' => $internalLiveChatUrl,
             'fallback_url' => $fallbackUrl,
             'services' => $services,
             'service_count' => count($services),
@@ -176,7 +186,7 @@ class Controller extends BaseController
 
         foreach ($candidates as $candidate) {
             $candidate = trim((string) $candidate);
-            if ($this->isUsableCustomerServiceUrl($candidate)) {
+            if (!$this->isWorkOrderServiceUrl($candidate) && $this->isUsableCustomerServiceUrl($candidate)) {
                 return $candidate;
             }
         }
@@ -195,12 +205,19 @@ class Controller extends BaseController
 
         foreach ($candidates as $candidate) {
             $candidate = trim((string) $candidate);
-            if ($this->isUsableCustomerServiceUrl($candidate)) {
+            if (!$this->isWorkOrderServiceUrl($candidate) && $this->isUsableCustomerServiceUrl($candidate)) {
                 return $candidate;
             }
         }
 
         return '';
+    }
+
+    protected function isWorkOrderServiceUrl($url)
+    {
+        $path = strtolower((string) parse_url(trim((string) $url), PHP_URL_PATH));
+
+        return $path === '/support/work-orders.html';
     }
 
     protected function isUsableCustomerServiceUrl($url)

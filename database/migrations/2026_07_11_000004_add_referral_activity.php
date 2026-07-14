@@ -47,9 +47,9 @@ class AddReferralActivity extends Migration
             'app_popup_image' => '/assets/promotions/referral-banner.webp',
             'detail_image' => '/assets/promotions/referral-detail.jpg',
             'app_detail_image' => '/assets/promotions/referral-detail.jpg',
-            'action_url' => '/member/center',
+            'action_url' => '',
             'button_text' => 'ดูรายละเอียด',
-            'requires_auth' => 1,
+            'requires_auth' => 0,
             'updated_at' => $now,
         ];
 

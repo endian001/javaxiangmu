@@ -195,15 +195,25 @@ class PromotionApiSourceTest extends TestCase
             $this->assertStringContainsString($needle, $service);
         }
 
-        foreach ([
-            $this->root().'/app/Http/Controllers/Controller.php',
-            $this->root().'/app/Http/Controllers/Api/PromotionController.php',
-            $this->root().'/app/Http/Controllers/Api/IndexController.php',
-            $this->root().'/app/Http/Controllers/Api/AppController.php',
-            $this->root().'/app/Http/Controllers/Api/PayController.php',
-            $this->root().'/app/Services/SafeGameTransferService.php',
-        ] as $path) {
-            $this->assertStringContainsString('TcgBusinessOperationService', file_get_contents($path), $path);
+        $controller = file_get_contents($this->root().'/app/Http/Controllers/Controller.php');
+        $this->assertStringContainsString('TcgBusinessOperationService', $controller);
+        $this->assertStringContainsString('validateActivityCouponForApply', $controller);
+        $this->assertStringContainsString('gameRestrictionHit', $controller);
+        $this->assertStringContainsString('amountExceedsPlayerLimit', $controller);
+
+        $runtimeChecks = [
+            $this->root().'/app/Http/Controllers/Api/PromotionController.php' => ['validateActivityCouponForApply', 'markActivityCouponUsed'],
+            $this->root().'/app/Http/Controllers/Api/IndexController.php' => ['validateActivityCouponForApply', 'markActivityCouponUsed', 'gameRestrictionHit', 'amountExceedsPlayerLimit'],
+            $this->root().'/app/Http/Controllers/Api/AppController.php' => ['validateActivityCouponForApply', 'markActivityCouponUsed', 'gameRestrictionHit'],
+            $this->root().'/app/Http/Controllers/Api/PayController.php' => ['amountExceedsPlayerLimit'],
+            $this->root().'/app/Services/SafeGameTransferService.php' => ['TcgBusinessOperationService', 'amountExceedsPlayerLimit'],
+        ];
+
+        foreach ($runtimeChecks as $path => $needles) {
+            $source = file_get_contents($path);
+            foreach ($needles as $needle) {
+                $this->assertStringContainsString($needle, $source, $path);
+            }
         }
     }
 

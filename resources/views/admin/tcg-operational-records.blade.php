@@ -10,6 +10,9 @@
     $fields = $schema['fields'];
     $columns = $schema['columns'];
     $statusOptions = $schema['status_options'];
+    $emptyState = $schema['empty_state'] ?? '暂无记录';
+    $actionLabel = $schema['action_label'] ?? '新增记录';
+    $editLabel = $schema['edit_label'] ?? '编辑记录';
     $keywordLabels = collect($schema['keyword_fields'] ?? [])
         ->map(function ($name) use ($fields) {
             foreach ($fields as $field) {
@@ -79,7 +82,7 @@
         <button class="btn btn-primary" type="submit">搜索</button>
         <a class="btn btn-default" href="{{ $baseUrl }}">重置</a>
         @if($canWrite)
-            <button class="btn btn-success" type="button" data-ops-new @if(!$tableReady) disabled @endif>新增</button>
+            <button class="btn btn-success" type="button" data-ops-new @if(!$tableReady) disabled @endif>{{ $actionLabel }}</button>
         @endif
         @if($canExport)
             <a class="btn btn-success" href="{{ $exportUrl }}">导出</a>
@@ -118,7 +121,7 @@
                     <td>
                         <div class="tcg-ops-actions">
                             @if($canWrite)
-                                <button class="btn btn-xs btn-primary" type="button" data-ops-edit>编辑</button>
+                                <button class="btn btn-xs btn-primary" type="button" data-ops-edit>{{ $editLabel }}</button>
                             @endif
                             @if($canDelete)
                                 <button class="btn btn-xs btn-danger" type="button" data-ops-delete>删除</button>
@@ -127,7 +130,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="{{ count($columns) + 1 }}" class="text-center text-muted">暂无记录</td></tr>
+                <tr><td colspan="{{ count($columns) + 1 }}" class="text-center text-muted">{{ $emptyState }}</td></tr>
             @endforelse
             </tbody>
         </table>
@@ -140,7 +143,7 @@
 <div class="tcg-ops-modal" data-ops-modal>
     <div class="tcg-ops-dialog">
         <header>
-            <strong data-ops-modal-title>新增记录</strong>
+            <strong data-ops-modal-title>{{ $actionLabel }}</strong>
             <button class="btn btn-xs btn-default" type="button" data-ops-close>关闭</button>
         </header>
         <main>
@@ -149,6 +152,7 @@
                 @php
                     $type = $field['type'] ?? 'text';
                     $wide = in_array($type, ['textarea'], true);
+                    $fieldOptions = $field['options'] ?? [];
                 @endphp
                 <div class="{{ $wide ? 'tcg-ops-wide' : '' }}">
                     <label>
@@ -160,6 +164,12 @@
                     @elseif($type === 'select' && $field['name'] === 'status')
                         <select class="form-control" data-field="{{ $field['name'] }}" @if(!empty($field['required'])) required @endif>
                             @foreach($statusOptions as $value => $label)
+                                <option value="{{ $value }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    @elseif($type === 'select')
+                        <select class="form-control" data-field="{{ $field['name'] }}" @if(!empty($field['required'])) required @endif>
+                            @foreach($fieldOptions as $value => $label)
                                 <option value="{{ $value }}">{{ $label }}</option>
                             @endforeach
                         </select>
@@ -229,9 +239,9 @@
             if ((item.type || 'text') === 'datetime') {
                 value = datetimeForInput(value);
             }
-            input.value = value || (item.name === 'status' ? 'active' : '');
+            input.value = value || item.default || (item.name === 'status' ? 'active' : '');
         });
-        document.querySelector('[data-ops-modal-title]').textContent = row ? '编辑记录 #' + record.id : '新增记录';
+        document.querySelector('[data-ops-modal-title]').textContent = row ? @json($editLabel).' #' + record.id : @json($actionLabel);
     }
 
     function closeModal(){

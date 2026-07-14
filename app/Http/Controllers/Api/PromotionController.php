@@ -42,9 +42,12 @@ class PromotionController extends Controller
         ]];
 
         foreach ($rows as $row) {
+            $publicName = $this->activityTypePublicName($row);
             $items[] = [
                 'id' => (int) $row->id,
-                'name' => $this->cleanText($row->name ?? '', "\u{6d3b}\u{52a8}"),
+                'name' => $publicName,
+                'admin_name' => $this->cleanText($row->name ?? '', "\u{6d3b}\u{52a8}"),
+                'enname' => $this->cleanText($row->enname ?? '', ''),
                 'icon' => $this->uploadUrl($row->icon ?? ''),
                 'sort_order' => (int) ($row->sort_order ?? 0),
             ];
@@ -198,7 +201,7 @@ class PromotionController extends Controller
         $row = [
             'id' => (int) $activity->id,
             'type' => (int) $activity->type,
-            'type_name' => $this->cleanText(optional($activity->type_data)->name ?: '', "\u{6d3b}\u{52a8}"),
+            'type_name' => $this->activityTypePublicName($activity->type_data),
             'title' => $this->cleanText($this->displayText($activity->entitle ?? '', $activity->title ?? ''), "TH2.VIP \u{6d3b}\u{52a8}"),
             'banner' => $this->uploadUrl($banner),
             'app_img' => $this->uploadUrl($activity->app_img ?? ''),
@@ -238,6 +241,18 @@ class PromotionController extends Controller
         }
 
         return trim((string) $fallback);
+    }
+
+    protected function activityTypePublicName($type)
+    {
+        if (!$type) {
+            return "\u{6d3b}\u{52a8}";
+        }
+
+        return $this->cleanText(
+            $this->displayText($type->enname ?? '', $type->name ?? ''),
+            "\u{6d3b}\u{52a8}"
+        );
     }
 
     protected function buttonText(Activity $activity)

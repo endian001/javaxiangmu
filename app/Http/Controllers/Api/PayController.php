@@ -65,10 +65,8 @@ class PayController extends Controller
                 $gameblance +=$wo['blance'];
             }
         }
-        $info = SystemConfig::where('key','usdt_rate')->first();
         $money = TransferLog::where('user_id',$user->id)
             ->where('state', 0)->sum('money');
-        $info_withdraw = SystemConfig::where('key','withdraw_usdt_rate')->first();
         $user->fanshui = $money;
         $data['api_token'] = $user->api_token;
         $data['balance'] = $user->balance;
@@ -85,12 +83,10 @@ class PayController extends Controller
         $data['mobile'] = $user->phone;
         $data['email'] = $user->mail;
         $data['birthday'] = $user->birthday;
-        $data['usdtrate'] = $info->value;
-        $data['withdrawusdtrate'] =$info_withdraw->value;   
-        $info_withdrawcashfee = SystemConfig::where('key','withdraw_fee_usdt_erc')->first();
-        $data['withdrawcashfee'] =$info_withdrawcashfee->value;  
-        $info_withdrawfeeusdttrc = SystemConfig::where('key','withdraw_cash_fee')->first();
-        $data['withdrawfeeusdttrc'] =$info_withdrawfeeusdttrc->value; 
+        $data['usdtrate'] = $this->systemConfigValue('usdt_rate', 0);
+        $data['withdrawusdtrate'] = $this->systemConfigValue('withdraw_usdt_rate', 0);
+        $data['withdrawcashfee'] = $this->systemConfigValue('withdraw_fee_usdt_erc', 0);
+        $data['withdrawfeeusdttrc'] = $this->systemConfigValue('withdraw_cash_fee', 0);
         $uservip = UserVip::where('id',$user->vip)->first();
         if($uservip){
                 $data['vipname'] =  '/static/style/'.strtolower($uservip->vipname).'.png';
@@ -99,7 +95,7 @@ class PayController extends Controller
          }
 
          
-        return $this->returnMsg(200, $data,'刷新成功');
+        return $this->returnMsg(200, $data,'refresh success');
     }
     /**
      * 系统银行卡信息
@@ -159,21 +155,23 @@ class PayController extends Controller
                 return $this->returnMsg($data ? 200 : 500,$data,'wxpay');
                 break;
            case 5: //提交后台审核  USDT
-                $infousd = SystemConfig::where('key','usdt_rate')->first();
+                $usdtRate = (float) $this->systemConfigValue('usdt_rate', 1);
+                $usdtRate = $usdtRate > 0 ? $usdtRate : 1;
                 $usdtinfo = $this->findActiveCodePay(['trc20', 5]);    
                 if (!$usdtinfo) {
                     return $this->returnMsg(500, [], 'usdt trc20 channel unavailable');
                 }
                 $usdtinfo->payimg = $usdtinfo->payimg ? env('APP_URL').'/uploads/'.$usdtinfo->payimg : '';
                 $info->paytype='USDT扫码支付';
-                $info->usdtrate = $infousd->value;
-                $info->real_money = round($info->real_money / $infousd->value,2);
+                $info->usdtrate = $usdtRate;
+                $info->real_money = round($info->real_money / $usdtRate,2);
                 $data['info'] = $info;
                 $data['cardlist'] = $usdtinfo;                   
                 return $this->returnMsg($data ? 200 : 500,$data,'usdtpay');
                 break;
            case 6: //提交后台审核  USDT
-                $infousd = SystemConfig::where('key','usdt_rate')->first();
+                $usdtRate = (float) $this->systemConfigValue('usdt_rate', 1);
+                $usdtRate = $usdtRate > 0 ? $usdtRate : 1;
                 
                 $usdtinfo = $this->findActiveCodePay(['erc20', 7]);        
                 if (!$usdtinfo) {
@@ -181,8 +179,8 @@ class PayController extends Controller
                 }
                 $usdtinfo->payimg = $usdtinfo->payimg ? env('APP_URL').'/uploads/'.$usdtinfo->payimg : '';
                 $info->paytype='USDT扫码支付';
-                $info->usdtrate = $infousd->value;
-                $info->real_money = round($info->real_money / $infousd->value,2);
+                $info->usdtrate = $usdtRate;
+                $info->real_money = round($info->real_money / $usdtRate,2);
                 $data['info'] = $info;
                 $data['cardlist'] = $usdtinfo;                   
                 return $this->returnMsg($data ? 200 : 500,$data,'usdtpay');
@@ -670,8 +668,8 @@ class PayController extends Controller
     }
   
   
-     $info = SystemConfig::where('key','usdt_rate')->first();
-     $info_withdraw = SystemConfig::where('key','withdraw_usdt_rate')->first();
+     $usdtRate = $this->systemConfigValue('usdt_rate', 0);
+     $withdrawUsdtRate = $this->systemConfigValue('withdraw_usdt_rate', 0);
      foreach ($list as &$val){
         if($val->bank!='USDT' && $val->bank != 'ebpay' && $val->bank != 'antoken'){
 			$banklist = Bank::where('bank_name', $val->bank)->first();
@@ -680,11 +678,17 @@ class PayController extends Controller
             $val->ico='';
         }
             $val->bank_not=substr($val->bank_no,-4);
-            $val->usdtrate=$info->value;
-            $val->withdrawusdtrate=$info_withdraw->value;
+            $val->usdtrate=$usdtRate;
+            $val->withdrawusdtrate=$withdrawUsdtRate;
             
         }        
         return $this->returnMsg(200, $list);
+    }
+
+    protected function systemConfigValue($key, $default = '')
+    {
+        $value = SystemConfig::getValue($key);
+        return $value === '' || $value === null ? $default : $value;
     }
 
     /**
@@ -960,6 +964,10 @@ class PayController extends Controller
 
     protected function safeAccountToGameTransfer(User $user, $platform, $amount, TgService $tg)
     {
+        if ($limit = $this->amountExceedsPlayerLimit($user, $amount, $platform)) {
+            return $this->returnMsg(209, [], $this->tcgRestrictionMessage($limit, 'transfer amount exceeds player limit'));
+        }
+
         $reserved = DB::transaction(function () use ($user, $platform, $amount) {
             $active = $this->activePendingTransfer($user->id, $platform, 0);
             if ($active) {

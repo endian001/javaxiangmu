@@ -27,11 +27,11 @@ class HomeOperationsFrontendSourceTest extends TestCase
                 $file.' should expose a home banner hook'
             );
             $this->assertStringContainsString(
-                '/assets/home-operations.css?v=20260713ops4',
+                '/assets/home-operations.css?v=20260714livechat1',
                 $source
             );
             $this->assertStringContainsString(
-                '/assets/home-operations.js?v=20260713ops4',
+                '/assets/home-operations.js?v=20260714livechat1',
                 $source
             );
         }
@@ -81,8 +81,13 @@ class HomeOperationsFrontendSourceTest extends TestCase
 
         $this->assertStringContainsString('function openCustomerService(', $script);
         $this->assertStringContainsString('function resolveCustomerServiceUrl(', $script);
-        $this->assertStringContainsString('fallback_url', $script);
+        $this->assertStringContainsString('function isWorkOrderContactUrl(', $script);
         $this->assertStringContainsString('/api/getservicerurl', $script);
+        $this->assertStringContainsString('/support/live-chat.html', $script);
+        $this->assertStringContainsString('skipCache', $script);
+        $this->assertStringContainsString('customerServicePayloadCache && resolveCustomerServiceUrl(customerServicePayloadCache)', $script);
+        $this->assertStringContainsString('online.hidden = false', $script);
+        $this->assertStringNotContainsString("candidates.push('/support/work-orders.html')", $script);
         $this->assertStringNotContainsString(
             'data-online-service href="/support/work-orders.html"',
             $script,
@@ -109,6 +114,26 @@ class HomeOperationsFrontendSourceTest extends TestCase
             strpos($source, '/api/getservicerurl') !== false,
             'The mobile bottom customer-service tab should use the shared customer-service flow or fetch /api/getservicerurl.'
         );
+    }
+
+    public function test_work_order_page_uses_shared_login_route()
+    {
+        $source = file_get_contents($this->root().'/public/support/work-orders.html');
+
+        $this->assertStringContainsString("location.href='/login?redirect='", $source);
+        $this->assertStringNotContainsString('/new-h5/#/login', $source);
+    }
+
+    public function test_realtime_live_chat_page_exists_and_uses_live_chat_api()
+    {
+        $source = file_get_contents($this->root().'/public/support/live-chat.html');
+
+        $this->assertStringContainsString('/api/live-chat/session', $source);
+        $this->assertStringContainsString('/api/live-chat/messages', $source);
+        $this->assertStringContainsString('setInterval', $source);
+        $this->assertStringContainsString('data-live-chat-form', $source);
+        $this->assertStringNotContainsString('/api/work-orders/create', $source);
+        $this->assertStringNotContainsString('提交工单', $source);
     }
 
     public function test_home_operations_does_not_strip_thai_text()

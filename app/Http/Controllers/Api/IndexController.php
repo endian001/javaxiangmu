@@ -830,7 +830,9 @@ class IndexController extends Controller
         }
         $list = $query->orderBy('id', 'asc')->get();
         foreach ($list as $item) {
-            $item->name = $item->name ?? '';
+            $adminName = (string) ($item->name ?? '');
+            $item->name = $this->activityTypePublicName($item);
+            $item->admin_name = $adminName;
             $item->enname = $item->enname ?? '';
             $item->icon = isset($item->icon) ? $this->formatUploadUrl($item->icon) : '';
         }
@@ -898,6 +900,299 @@ class IndexController extends Controller
     public function getServicerUrl(Request $request)
     {
         return $this->returnMsg(200, $this->customerServicePayload($this->requestPlayerLevel($request)));
+    }
+
+    public function liveChatSession(Request $request)
+    {
+        $unavailable = $this->liveChatUnavailableResponse();
+        if ($unavailable) {
+            return $unavailable;
+        }
+
+        $session = $this->findOrCreateLiveChatSession($request);
+        if ($session instanceof \Illuminate\Http\JsonResponse) {
+            return $session;
+        }
+
+        $this->markLiveChatReadByUser($session->id);
+
+        return $this->returnMsg(200, [
+            'session' => $this->formatLiveChatSession($session),
+            'messages' => $this->liveChatMessageRows($session->id),
+            'poll_interval' => 2500,
+        ], 'success');
+    }
+
+    public function liveChatMessages(Request $request)
+    {
+        $unavailable = $this->liveChatUnavailableResponse();
+        if ($unavailable) {
+            return $unavailable;
+        }
+
+        $session = $this->findOrCreateLiveChatSession($request);
+        if ($session instanceof \Illuminate\Http\JsonResponse) {
+            return $session;
+        }
+
+        $this->markLiveChatReadByUser($session->id);
+        $afterId = max(0, (int) $request->input('after_id', 0));
+
+        return $this->returnMsg(200, [
+            'session' => $this->formatLiveChatSession($session),
+            'messages' => $this->liveChatMessageRows($session->id, $afterId),
+        ], 'success');
+    }
+
+    public function liveChatSend(Request $request)
+    {
+        $unavailable = $this->liveChatUnavailableResponse();
+        if ($unavailable) {
+            return $unavailable;
+        }
+
+        $session = $this->findOrCreateLiveChatSession($request);
+        if ($session instanceof \Illuminate\Http\JsonResponse) {
+            return $session;
+        }
+
+        $content = trim((string) $request->input('content', $request->input('message', '')));
+        if ($content === '') {
+            return $this->returnMsg(422, [], 'Message content is required');
+        }
+
+        $content = mb_substr($content, 0, 1000);
+        $user = $this->activeUserFromBearer($request);
+        $now = now();
+        $messageId = DB::table('live_chat_messages')->insertGetId([
+            'session_id' => $session->id,
+            'user_id' => $user ? $user->id : null,
+            'admin_id' => null,
+            'sender_type' => 'user',
+            'content' => $content,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        DB::table('live_chat_sessions')->where('id', $session->id)->update([
+            'status' => 'open',
+            'last_message' => $content,
+            'last_message_at' => $now,
+            'last_user_message_at' => $now,
+            'admin_unread_count' => DB::raw('admin_unread_count + 1'),
+            'closed_at' => null,
+            'updated_at' => $now,
+        ]);
+
+        $freshSession = DB::table('live_chat_sessions')->where('id', $session->id)->first();
+        $message = DB::table('live_chat_messages')->where('id', $messageId)->first();
+
+        return $this->returnMsg(200, [
+            'session' => $this->formatLiveChatSession($freshSession),
+            'message' => $this->formatLiveChatMessage($message),
+        ], 'success');
+    }
+
+    public function liveChatClose(Request $request)
+    {
+        $unavailable = $this->liveChatUnavailableResponse();
+        if ($unavailable) {
+            return $unavailable;
+        }
+
+        $session = $this->findOrCreateLiveChatSession($request);
+        if ($session instanceof \Illuminate\Http\JsonResponse) {
+            return $session;
+        }
+
+        DB::table('live_chat_sessions')->where('id', $session->id)->update([
+            'status' => 'closed',
+            'closed_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $freshSession = DB::table('live_chat_sessions')->where('id', $session->id)->first();
+
+        return $this->returnMsg(200, [
+            'session' => $this->formatLiveChatSession($freshSession),
+        ], 'success');
+    }
+
+    protected function liveChatUnavailableResponse()
+    {
+        if ((int) SystemConfig::getValue('internal_live_chat_enabled') !== 1) {
+            return $this->returnMsg(403, [], 'Live chat is disabled');
+        }
+
+        if (!Schema::hasTable('live_chat_sessions') || !Schema::hasTable('live_chat_messages')) {
+            return $this->returnMsg(503, [], 'Live chat is not ready');
+        }
+
+        return null;
+    }
+
+    protected function findOrCreateLiveChatSession(Request $request)
+    {
+        $user = $this->activeUserFromBearer($request);
+        $visitorId = $this->liveChatVisitorId($request);
+        if (!$user && $visitorId === '') {
+            return $this->returnMsg(422, [], 'Visitor id is required');
+        }
+
+        $sessionId = (int) $request->input('session_id', 0);
+        if ($sessionId > 0) {
+            $session = $this->liveChatSessionQuery($user, $visitorId)
+                ->where('id', $sessionId)
+                ->where('status', '<>', 'closed')
+                ->first();
+            if ($session) {
+                return $this->attachLiveChatUser($session, $user, $visitorId);
+            }
+        }
+
+        $session = $this->liveChatSessionQuery($user, $visitorId)
+            ->where('status', '<>', 'closed')
+            ->orderByDesc('id')
+            ->first();
+        if ($session) {
+            return $this->attachLiveChatUser($session, $user, $visitorId);
+        }
+
+        $now = now();
+        $id = DB::table('live_chat_sessions')->insertGetId([
+            'session_no' => $this->makeLiveChatSessionNo(),
+            'visitor_id' => $visitorId ?: null,
+            'user_id' => $user ? $user->id : null,
+            'username' => $user ? (string) $user->username : ('游客-' . substr($visitorId, -6)),
+            'status' => 'open',
+            'last_message' => '',
+            'last_message_at' => null,
+            'last_user_message_at' => null,
+            'last_admin_message_at' => null,
+            'admin_unread_count' => 0,
+            'user_unread_count' => 0,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        return DB::table('live_chat_sessions')->where('id', $id)->first();
+    }
+
+    protected function liveChatSessionQuery($user, $visitorId)
+    {
+        $query = DB::table('live_chat_sessions')->whereNull('deleted_at');
+        if ($user) {
+            $query->where(function ($builder) use ($user, $visitorId) {
+                $builder->where('user_id', $user->id);
+                if ($visitorId !== '') {
+                    $builder->orWhere('visitor_id', $visitorId);
+                }
+            });
+        } else {
+            $query->whereNull('user_id')->where('visitor_id', $visitorId);
+        }
+
+        return $query;
+    }
+
+    protected function attachLiveChatUser($session, $user, $visitorId)
+    {
+        if ($user && ((int) ($session->user_id ?? 0) === 0 || (string) ($session->username ?? '') === '')) {
+            DB::table('live_chat_sessions')->where('id', $session->id)->update([
+                'user_id' => $user->id,
+                'username' => (string) $user->username,
+                'visitor_id' => $visitorId ?: $session->visitor_id,
+                'updated_at' => now(),
+            ]);
+
+            return DB::table('live_chat_sessions')->where('id', $session->id)->first();
+        }
+
+        return $session;
+    }
+
+    protected function liveChatVisitorId(Request $request)
+    {
+        $visitorId = trim((string) $request->input('visitor_id', $request->header('X-Visitor-Id', '')));
+        if ($visitorId === '') {
+            return '';
+        }
+
+        $visitorId = mb_substr($visitorId, 0, 100);
+        return preg_match('/^[A-Za-z0-9._:-]{8,100}$/', $visitorId) ? $visitorId : '';
+    }
+
+    protected function liveChatMessageRows($sessionId, $afterId = 0)
+    {
+        return DB::table('live_chat_messages')
+            ->whereNull('deleted_at')
+            ->where('session_id', $sessionId)
+            ->when($afterId > 0, function ($query) use ($afterId) {
+                $query->where('id', '>', $afterId);
+            })
+            ->orderBy('id')
+            ->limit(100)
+            ->get()
+            ->map(function ($message) {
+                return $this->formatLiveChatMessage($message);
+            })
+            ->values()
+            ->all();
+    }
+
+    protected function markLiveChatReadByUser($sessionId)
+    {
+        DB::table('live_chat_sessions')->where('id', $sessionId)->update([
+            'user_unread_count' => 0,
+            'updated_at' => now(),
+        ]);
+
+        DB::table('live_chat_messages')
+            ->where('session_id', $sessionId)
+            ->where('sender_type', 'admin')
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+    }
+
+    protected function makeLiveChatSessionNo()
+    {
+        do {
+            $sessionNo = 'LC' . date('YmdHis') . random_int(1000, 9999);
+        } while (DB::table('live_chat_sessions')->where('session_no', $sessionNo)->exists());
+
+        return $sessionNo;
+    }
+
+    protected function formatLiveChatSession($session)
+    {
+        return [
+            'id' => (int) $session->id,
+            'session_no' => (string) $session->session_no,
+            'visitor_id' => (string) ($session->visitor_id ?? ''),
+            'user_id' => (int) ($session->user_id ?? 0),
+            'username' => (string) ($session->username ?? ''),
+            'status' => (string) $session->status,
+            'last_message' => (string) ($session->last_message ?? ''),
+            'last_message_at' => (string) ($session->last_message_at ?? ''),
+            'last_user_message_at' => (string) ($session->last_user_message_at ?? ''),
+            'last_admin_message_at' => (string) ($session->last_admin_message_at ?? ''),
+            'admin_unread_count' => (int) ($session->admin_unread_count ?? 0),
+            'user_unread_count' => (int) ($session->user_unread_count ?? 0),
+            'created_at' => (string) ($session->created_at ?? ''),
+            'updated_at' => (string) ($session->updated_at ?? ''),
+        ];
+    }
+
+    protected function formatLiveChatMessage($message)
+    {
+        return [
+            'id' => (int) $message->id,
+            'session_id' => (int) $message->session_id,
+            'sender_type' => (string) $message->sender_type,
+            'is_admin' => (string) $message->sender_type === 'admin',
+            'content' => (string) $message->content,
+            'created_at' => (string) ($message->created_at ?? ''),
+        ];
     }
 
     public function workOrderList(Request $request)
@@ -2183,7 +2478,7 @@ class IndexController extends Controller
         $detailImage = $channel === 'mobile'
             ? (($activity->app_detail_image ?? '') ?: ($activity->detail_image ?? '') ?: $banner)
             : (($activity->detail_image ?? '') ?: ($activity->app_detail_image ?? '') ?: $banner);
-        $typeName = $activity->type_data ? (string) ($activity->type_data->name ?? '') : '';
+        $typeName = $this->activityTypePublicName($activity->type_data);
         $title = $this->promotionDisplayText($activity->entitle ?? '', $activity->title ?? '');
         $content = $this->promotionDisplayText($activity->encontent ?? '', $activity->content ?? '');
         $memo = $this->promotionDisplayText($activity->enmemo ?? '', $activity->memo ?? '');
@@ -2304,6 +2599,15 @@ class IndexController extends Controller
         return trim((string) $fallback);
     }
 
+    private function activityTypePublicName($type)
+    {
+        if (!$type) {
+            return '';
+        }
+
+        return $this->promotionDisplayText($type->enname ?? '', $type->name ?? '');
+    }
+
     private function formatUploadUrl($path)
     {
         $path = trim((string) $path);
@@ -2380,6 +2684,17 @@ class IndexController extends Controller
         $stream_config_url = $servicePayload['stream_config_url'];
         $stream_token_url = $servicePayload['stream_token_url'];
         $stream_channel_url = $servicePayload['stream_channel_url'];
+        $mode = $servicePayload['mode'];
+        $realtime_enabled = $servicePayload['realtime_enabled'];
+        $realtime_provider = $servicePayload['realtime_provider'];
+        $realtime_url = $servicePayload['realtime_url'];
+        $livechat_url = $servicePayload['livechat_url'];
+        $external_livechat_url = $servicePayload['external_livechat_url'];
+        $internal_live_chat_enabled = $servicePayload['internal_live_chat_enabled'];
+        $internal_live_chat_url = $servicePayload['internal_live_chat_url'];
+        $fallback_url = $servicePayload['fallback_url'];
+        $services = $servicePayload['services'];
+        $customer_service = $servicePayload;
         $title = SystemConfig::getValue('site_title') ?? 'TH2.VIP';
         $redpacket_switch = SystemConfig::getValue('redpacket');
         $site_state = SystemConfig::getValue('site_state');
@@ -2394,7 +2709,7 @@ class IndexController extends Controller
         $download_bar_icon = $this->uploadUrl(SystemConfig::getValue('download_bar_icon')) ?: $app_logo ?: $site_logo;
         $login_bonus_img = $this->uploadUrl(SystemConfig::getValue('login_bonus_img'));
         $vip_rule_title_img = $this->uploadUrl(SystemConfig::getValue('vip_rule_title_img'));
-        return $this->returnMsg(200,compact('ios_download_qrcode','ios_download_url','h5_url','wap_url','pc_url','app_url','agent_login_url','official_domain','navigation_domains','asset_domain','sponsor_page_url_1','sponsor_page_url_2','agent_url','url','kf_url','service_url','service_link','customer_service_url','online_service_url','service_type','customer_service_configured','link_configured','work_order_enabled','work_order_page_url','work_order_list_url','work_order_create_url','work_order_detail_url','work_order_reply_url','work_order_close_url','ws_enabled','stream_chat','stream_config_url','stream_token_url','stream_channel_url','title','redpacket_switch','site_state','fanshui','index_modal','repair_tips','webcontent','site_logo','app_logo','download_bar_icon','login_bonus_img','vip_rule_title_img'));
+        return $this->returnMsg(200,compact('ios_download_qrcode','ios_download_url','h5_url','wap_url','pc_url','app_url','agent_login_url','official_domain','navigation_domains','asset_domain','sponsor_page_url_1','sponsor_page_url_2','agent_url','url','kf_url','service_url','service_link','customer_service_url','online_service_url','service_type','customer_service_configured','link_configured','work_order_enabled','work_order_page_url','work_order_list_url','work_order_create_url','work_order_detail_url','work_order_reply_url','work_order_close_url','ws_enabled','stream_chat','stream_config_url','stream_token_url','stream_channel_url','mode','realtime_enabled','realtime_provider','realtime_url','livechat_url','external_livechat_url','internal_live_chat_enabled','internal_live_chat_url','fallback_url','services','customer_service','title','redpacket_switch','site_state','fanshui','index_modal','repair_tips','webcontent','site_logo','app_logo','download_bar_icon','login_bonus_img','vip_rule_title_img'));
     }
 
 
