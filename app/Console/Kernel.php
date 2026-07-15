@@ -15,6 +15,7 @@ class Kernel extends ConsoleKernel
     protected $commands = [
         Commands\CrawGameRecord::class,
         Commands\AllAgentFanyong::class,
+        Commands\SyncUsdtThbRate::class,
     ];
 
     /**
@@ -54,6 +55,10 @@ class Kernel extends ConsoleKernel
             ->everyMinute()
             ->withoutOverlapping()
             ->appendOutputTo(storage_path('logs/tracking-postbacks.log'));
+        $schedule->command('exchange:sync-usdt-thb-rate')
+            ->dailyAt('01:00')
+            ->withoutOverlapping()
+            ->appendOutputTo(storage_path('logs/usdt-thb-rate-sync.log'));
     }
 
     /**
